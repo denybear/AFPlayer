@@ -1,13 +1,13 @@
 [
   {
     "song": "Intro",
-    "video": "We Are",
+    "video": "We Are.mp4",
     "sample": [],
     "startPosition": "beginning"
   },
   {
     "song": "Speak to me",
-    "video": "Dark Side",
+    "video": "Dark Side.mp4",
     "sample": [
       "SpeakToMe_intro.mp3"
     ],
@@ -15,13 +15,13 @@
   },
   {
     "song": "Breathe",
-    "video": "Dark Side",
+    "video": "Dark Side.mp4",
     "sample": [],
     "startPosition": "random"
   },
   {
     "song": "Time",
-    "video": "Landing Strip",
+    "video": "Landing Strip.mp4",
     "sample": [
       "Time_intro.mp3"
     ],
@@ -29,7 +29,7 @@
   },
   {
     "song": "The Great Gig In The Sky",
-    "video": "Dark Side",
+    "video": "Dark Side.mp4",
     "sample": [
       "TheGreatGigInTheSky_voice.mp3"
     ],
@@ -37,7 +37,7 @@
   },
   {
     "song": "Money",
-    "video": "Axis Triangle",
+    "video": "Axis Triangle.mp4",
     "sample": [
       "Money_intro.mp3",
       "Money_outro.mp3"
@@ -46,7 +46,7 @@
   },
   {
     "song": "Us & Them",
-    "video": "Wool Strings",
+    "video": "Wool Strings.mp4",
     "sample": [
       "UsAndThem_voice.mp3"
     ],
@@ -54,13 +54,13 @@
   },
   {
     "song": "Any Color You Like",
-    "video": "Dark Side",
+    "video": "Dark Side.mp4",
     "sample": [],
     "startPosition": "random"
   },
   {
     "song": "Brain Damage",
-    "video": "Procedural Moon",
+    "video": "Procedural Moon.mp4",
     "sample": [
       "BrainDamage_risata.mp3"
     ],
@@ -68,7 +68,7 @@
   },
   {
     "song": "Eclipse",
-    "video": "Procedural Moon",
+    "video": "Procedural Moon.mp4",
     "sample": [
       "Eclipse_outro.mp3"
     ],
@@ -76,25 +76,25 @@
   },
   {
     "song": "Intro",
-    "video": "We Are",
+    "video": "We Are.mp4",
     "sample": [],
     "startPosition": "beginning"
   },
   {
     "song": "Cymbaline",
-    "video": "Standard",
+    "video": "Standard.mp4",
     "sample": [],
     "startPosition": "random"
   },
   {
     "song": "Shine On You Crazy Diamond",
-    "video": "Astra Domine",
+    "video": "Astra Domine.mp4",
     "sample": [],
     "startPosition": "beginning"
   },
   {
     "song": "Dogs",
-    "video": "Animals",
+    "video": "Animals.mp4",
     "sample": [
       "Dogs_1.mp3",
       "Dogs_2.mp3"
@@ -103,7 +103,7 @@
   },
   {
     "song": "Wish You Were Here",
-    "video": "Electric Strings",
+    "video": "Electric Strings.mp4",
     "sample": [
       "WishYouWereHere_intro.mp3",
       "WishYouWereHere_outro.mp3"
@@ -112,7 +112,7 @@
   },
   {
     "song": "Comfortably Numb",
-    "video": "Moving Dots",
+    "video": "Moving Dots.mp4",
     "sample": [
       "ComfortablyNumb_intro.mp3",
       "ComfortablyNumb_aaaaa.mp3"
@@ -121,13 +121,13 @@
   },
   {
     "song": "Another Brick In The Wall",
-    "video": "The Wall",
+    "video": "The Wall.mp4",
     "sample": [],
     "startPosition": "random"
   },
   {
     "song": "Intro",
-    "video": "We Are",
+    "video": "We Are.mp4",
     "sample": [],
     "startPosition": "beginning"
   }
