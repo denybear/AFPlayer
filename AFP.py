@@ -4,14 +4,14 @@ import os
 import json
 import random
 import numpy as np
-#from display_song_info import displaySongInfo
+import threading
 
 #TO DO
 # variables raspiTarget et pcTarget pour le controle des touches
 # sur raspi, peut-on interrompre avec un clavier?
-# si problème audio, on ne joue pas audio; idem si pb video
-# si video ou audio n'existe pas, on ne joue pass
 # UI à redéfinir
+#
+# test: audio file does not exist, video file does not exist
 
 
 # Global variables
@@ -37,8 +37,13 @@ class Song:
 
 # functions to play an audio sample 
 def play_audio(audio_file):
-	pygame.mixer.music.load(audio_file)
+	try:
+		pygame.mixer.music.load(audio_file)
+	except pygame.error:
+		# file does not exist
+		return False
 	pygame.mixer.music.play()
+	return True
 
 def stop_audio():
 	pygame.mixer.music.stop()
@@ -46,6 +51,7 @@ def stop_audio():
 def start_audio_thread(audio_file):
 	global audio_thread
 	stop_audio()
+# play_audio returns False in case file does not exist
 	audio_thread = threading.Thread(target=play_audio, args=(audio_file,))
 	audio_thread.start()
 
@@ -175,7 +181,12 @@ while running:
 		if event.type == pygame.QUIT:
 			running = False
 
-	# check if a key has been pressed; if so, then change display and video 
+	# check if volume is changed
+	# check mute button
+	#muted = True
+
+
+	# test if a key has been pressed
 	if keyed:
 		keyed = False
 
@@ -205,9 +216,9 @@ while running:
 
 			# if video is same as previous, then don't restart video... we just carry on showing
 			videoFileName = videoPath + playList [playListIndex].video
-#HERE: make sure video exists
+			print (videoFileName)
 			if videoFileName != previousVideoFileName:
-				cap = cv2.VideoCapture(videoFileName)
+				cap = cv2.VideoCapture(videoFileName)		# cap is False if file does not exist
 				previousVideoFileName = videoFileName
 				# determine startPos, and set it to video
 				if playList [playListIndex].startPosition == "beginning":
@@ -220,9 +231,10 @@ while running:
 
 		# sample keys are pressed
 		elif keyPressed == ord ('1') or keyPressed == ord ('2') or keyPressed == ord ('3'):
-			sampleString = "sample" + keyPressed
+			keyPressed = keyPressed - ord ('0')
+			sampleString = "sample" + str (keyPressed)
 			try:
-				sampleFileName = audioPath + playList [playListIndex].sampleFileName [int (keyPressed - 1)]
+				sampleFileName = audioPath + playList [playListIndex].sample [int (keyPressed - 1)]
 			except (ValueError, IndexError):
 				sampleFileName = ""
 
@@ -238,20 +250,19 @@ while running:
 
 			else:
 				if sampleFileName != "":
-					start_audio_thread (sampleFileName)
-					playing = True
-					# display song info
-					highlight_config = {
-						"songName": {"bold": True, "color": (64,224,208)},  # turquoise and bold
-						"audio": {"bold": True, "color": (0, 128, 0)},	# green and bold
-						sampleString: {"bold": False, "color": (0, 0, 255)}	# blue
-					}
-					displaySongInfo (screen, playList [playListIndex], volume_percent=volume, previous_entry=playList [playListPrevious].song, next_entry=playList [playListNext].song, highlight_config=highlight_config, muted=muted)
+					playing = start_audio_thread (sampleFileName)
+					if playing:
+						# audio file exists, display song info
+						highlight_config = {
+							"songName": {"bold": True, "color": (64,224,208)},  # turquoise and bold
+							"audio": {"bold": True, "color": (0, 128, 0)},	# green and bold
+							sampleString: {"bold": False, "color": (0, 0, 255)}	# blue
+						}
+						displaySongInfo (screen, playList [playListIndex], volume_percent=volume, previous_entry=playList [playListPrevious].song, next_entry=playList [playListNext].song, highlight_config=highlight_config, muted=muted)
 
 
-
-	# main loop for video
-	while cap.isOpened():
+	# display video (if exists)
+	if cap.isOpened():
 		ret, frame = cap.read()
 
 		# If the video ends, restart it
@@ -261,17 +272,15 @@ while running:
 		
 		cv2.imshow("Video", frame)
 
-		# Check key presses for 25ms
-		# if key press, then break and the rest will be managed in the main loop
-		keyPressed = cv2.waitKey(25)
-		if keyPressed != -1:
-			keyPressed &= 0xFF
-			keyed = True
-			break
 
-		# check if volume is changed
-		# check mute button
-		#muted = True
+
+	# check if a key has been pressed; if so, then change display and video 
+	# Check key presses for 25ms
+	# if key press, then break and the rest will be managed in the main loop
+	keyPressed = cv2.waitKey(25)
+	if keyPressed != -1:
+		keyPressed &= 0xFF
+		keyed = True
 
 
 
