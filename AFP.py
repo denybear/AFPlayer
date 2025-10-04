@@ -8,12 +8,14 @@ import threading
 from collections import deque
 
 #TO DO
-# UI à redéfinir
-#
 # test: audio file does not exist, video file does not exist
 # force video play of the first song
-# display name of the animation
-# remove muted
+# highlight_config: make sure we display the right things at the right time (error mgmt)
+# raspi keys
+# raspi rotary
+
+
+
 
 
 # Global variables
@@ -27,7 +29,6 @@ running = True
 playing = False
 audioVolume = 0.5
 videoRate = 1.0
-muted = False
 playListIndex = 0
 
 
@@ -107,65 +108,109 @@ def start_audio_thread(audio_file):
 	return True
 
 
-# User-interface : main screen
-def displaySongInfo(screen, song, volume_percent, previous_entry="", next_entry="", highlight_config=None, muted=False):
+
+def render_navigation(screen, previous_entry, next_entry, font, screen_width):
+	arrow_color = (0, 0, 0)
+	nav_y = 0  # Top of screen
+	arrow_width = 10
+	spacing = 10
+	nav_offset = arrow_width + spacing
+
+	# Previous entry and left arrow
+	prev_text_surface = font.render(previous_entry, True, arrow_color)
+	screen.blit(prev_text_surface, (nav_offset + arrow_width, nav_y))
+	pygame.draw.polygon(screen, arrow_color, [
+		(nav_offset, nav_y + 5),
+		(nav_offset, nav_y + 25),
+		(nav_offset - arrow_width, nav_y + 15)
+	])
+
+	# Next entry and right arrow
+	next_text_surface = font.render(next_entry, True, arrow_color)
+	next_text_width = next_text_surface.get_width()
+	next_text_x = screen_width - nav_offset - arrow_width - next_text_width
+	screen.blit(next_text_surface, (next_text_x, nav_y))
+	pygame.draw.polygon(screen, arrow_color, [
+		(screen_width - nav_offset, nav_y + 5),
+		(screen_width - nav_offset + arrow_width, nav_y + 15),
+		(screen_width - nav_offset, nav_y + 25)
+	])
+
+def displaySongInfo(screen, song, volume_percent, rate_percent, previous_entry="", next_entry="", highlight_config=None):
 	screen.fill((255, 255, 255))  # white background
 
-	# Initialise fonts with 15% larger size
 	pygame.font.init()
-	title_font = pygame.font.SysFont('Arial', int(32 * 1.15), bold=True)
-	regular_font = pygame.font.SysFont('Arial', int(20 * 1.15))
-	bold_font = pygame.font.SysFont('Arial', int(20 * 1.15), bold=True)
+	def get_font(size, bold=False):
+		return pygame.font.SysFont('Arial', int(size * 1.2), bold=bold)
 
-	if highlight_config is None:
-		highlight_config = {}
+	# Fonts
+	title_font = get_font(32 * 1.1, bold=True)  # Song title 10% bigger
+	regular_font = get_font(20)
+	bold_font = get_font(20, bold=True)
 
-	def render_text(label, value, key):
+	bottom_regular_font = pygame.font.SysFont('Arial', 20)
+	bottom_bold_font = pygame.font.SysFont('Arial', 20, bold=True)
+
+	highlight_config = highlight_config or {}
+
+	def render_text(label, value, key, font_override=None, color_override=None):
 		text_str = f"{label}: {value}"
-		color = highlight_config.get(key, {}).get("color", (0, 0, 0))
-		font = bold_font if highlight_config.get(key, {}).get("bold", False) else regular_font
+		config = highlight_config.get(key, {})
+		color = color_override if color_override else config.get("color", (0, 0, 0))
+		font = font_override if font_override else (bold_font if config.get("bold", False) else regular_font)
 		return font.render(text_str, True, color)
 
-	# Top line: previous and next song entries
-	arrow_color = (0, 0, 0)
-	pygame.draw.polygon(screen, arrow_color, [(20, 10), (20, 30), (10, 20)])  # left arrow
-	prev_text = regular_font.render(previous_entry, True, arrow_color)
-	screen.blit(prev_text, (30, 10))
-
-	next_text_surface = regular_font.render(next_entry, True, arrow_color)
-	next_text_width = next_text_surface.get_width()
-	pygame.draw.polygon(screen, arrow_color, [(460, 10), (470, 20), (460, 30)])  # right arrow
-	screen.blit(next_text_surface, (480 - next_text_width - 30, 10))
+	screen_width, screen_height = screen.get_size()
+	render_navigation(screen, previous_entry, next_entry, regular_font, screen_width)
 
 	# Song title
 	song_color = highlight_config.get("songName", {}).get("color", (0, 0, 0))
-	song_title = title_font.render(song.song, True, song_color)
-	screen.blit(song_title, (10, 50))
+	song_title_surface = title_font.render(song.song, True, song_color)
+	screen.blit(song_title_surface, (10, 30))
+
+	# Video name
+	video_name_surface = render_text("video", song.video, "videoName", font_override=regular_font, color_override=(0, 0, 139))
+	screen.blit(video_name_surface, (10, 80))
 
 	# Samples
+	sample_start_y = 130
+	sample_spacing = 50
 	for i in range(3):
-		try:
-			sample_text = render_text(f"sample {i+1}", song.sample[i], f"sample{i+1}")
-		except (ValueError, IndexError):
-			sample_text = render_text(f"sample {i+1}", "empty", f"sample{i+1}")
-		screen.blit(sample_text, (10, 100 + i * 30))
+		sample_value = song.sample[i] if i < len(song.sample) else "empty"
+		sample_surface = render_text(f"sample {i+1}", sample_value, f"sample{i+1}")
+		screen.blit(sample_surface, (10, sample_start_y + i * sample_spacing))
 
-	# Last line: AUDIO and VIDEO
-	audio_label = "muted" if muted else f"{int(volume_percent * 100)}%"
-	audio_color = highlight_config.get("audio", {}).get("color", (0, 0, 0))
-	audio_font = bold_font if highlight_config.get("audio", {}).get("bold", False) else regular_font
-	audio_text = audio_font.render(f"AUDIO {audio_label}", True, audio_color)
-	screen.blit(audio_text, (10, 280))
+	# AUDIO
+	audio_label = f"{int(volume_percent * 100)}%"
+	audio_config = highlight_config.get("audio", {})
+	audio_color = audio_config.get("color", (0, 0, 0))
+	audio_font = bottom_bold_font if audio_config.get("bold", False) else bottom_regular_font
+	audio_surface = audio_font.render(f"AUDIO {audio_label}", True, audio_color)
+	screen.blit(audio_surface, (10, screen_height - 30))  # ~10px from bottom
 
-	video_color = highlight_config.get("video", {}).get("color", (0, 0, 0))
-	video_font = bold_font if highlight_config.get("video", {}).get("bold", False) else regular_font
-	video_text = video_font.render("VIDEO", True, video_color)
-	screen.blit(video_text, (480 - video_text.get_width() - 10, 280))
+	# VIDEO with rate_percent
+	video_config = highlight_config.get("video", {})
+	video_color = video_config.get("color", (0, 0, 0))
+	video_font = bottom_bold_font if video_config.get("bold", False) else bottom_regular_font
+	video_text = f"VIDEO {int(rate_percent * 100)}%"
+	video_surface = video_font.render(video_text, True, video_color)
+	screen.blit(video_surface, (screen_width - video_surface.get_width() - 10, screen_height - 30))  # ~10px from bottom
 
 	pygame.display.flip()
 
 
 
+"""
+highlight_config = {
+	"songName": {"color": (255, 0, 0), "bold": True},	   # Red and bold
+	"videoName": {"color": (0, 0, 139), "bold": False},	 # Dark blue and regular
+	"sample1": {"color": (0, 128, 0), "bold": True},		# Green and bold
+	"audio": {"color": (128, 0, 128), "bold": True},		# Purple and bold
+	"video": {"color": (0, 0, 0), "bold": False}			# Black and regular
+}
+"""
+	
+	
 ########
 # MAIN #
 ########
@@ -176,10 +221,6 @@ with open('./playlist.json', 'r', encoding='utf-8') as file:
 
 # Create a list of Song objects
 playList = [Song(item['song'], item['video'], item['sample'], item['startPosition']) for item in data]
-
-# Print the playlist to verify
-#for song in playList:
-#	print(song)
 
 
 # Initialize Pygame
@@ -231,7 +272,7 @@ while running:
 
 		# display events
 		if next_event.label == "display":
-			displaySongInfo (screen, playList [playListIndex], volume_percent=audioVolume, previous_entry=playList [playListPrevious].song, next_entry=playList [playListNext].song, highlight_config=next_event.values, muted=muted)
+			displaySongInfo (screen, playList [playListIndex], volume_percent=audioVolume, rate_percent=videoRate, previous_entry=playList [playListPrevious].song, next_entry=playList [playListNext].song, highlight_config=next_event.values)
 
 		# key events
 		if next_event.label == "key":
@@ -350,10 +391,8 @@ while running:
 
 			# play
 			if next_event.values [0] == "play":
-#				print (next_event.values [0], next_event.values [1], next_event.values [2], next_event.values [3])
 				videoFileName = next_event.values [1]
 				previousVideoFileName = next_event.values [2]
-				print (videoFileName, previousVideoFileName)
 				# if video is same as previous, then don't restart video... we just carry on showing
 				if videoFileName != previousVideoFileName:
 					cap = cv2.VideoCapture(videoFileName)						# cap.isOpened() returns False if file does not exist
@@ -416,14 +455,14 @@ while running:
 	if raspiTarget:
 		pass
 		# check if volume is changed
-		# check mute button
-		#muted = True
+		# button would switch between audio volume and video rate
 
 
 
 # Cleanup
 stop_audio()
-cap.release()
+if cap is not None:
+	cap.release()
 cv2.destroyAllWindows()
 pygame.mixer.music.stop()
 pygame.quit()
