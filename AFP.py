@@ -1,3 +1,7 @@
+# Define targets
+raspiTarget = False
+pcTarget = True
+
 import pygame
 import cv2
 import os
@@ -6,16 +10,17 @@ import random
 import numpy as np
 import threading
 from collections import deque
+if raspiTarget:
+	import RPi.GPIO as GPIO
+
 
 #TO DO
 # test: audio file does not exist, video file does not exist
-# force video play of the first song
 # highlight_config: make sure we display the right things at the right time (error mgmt)
 # raspi keys
 # raspi rotary
-
-
-
+# display and approve samples only if they are in the playlist !!!
+# how to solve "sample1" vs. "sample", "1"
 
 
 # Global variables
@@ -23,13 +28,33 @@ audio_thread = None
 cap = None
 videoPath = "./video/"
 audioPath = "./audio/"
-raspiTarget = True
-pcTarget = True
 running = True
 playing = False
 audioVolume = 0.5
 videoRate = 1.0
 playListIndex = 0
+colorNoError = [0, 128, 0]
+colorError = [255, 0, 0]
+colorWarning = [255, 165, 0]
+audioColor = colorNoError
+videoColor = colorNoError
+inputGPIO = [18, 19, 20, 21, 22]
+inputGPIOName = ["previous", "next", "sample1", "sample2", "sample3"]
+
+
+# functions for raspi key capture and rotary capture
+def init_gpio():
+
+	# Set GPIO mode (BCM or BOARD)
+	GPIO.setmode(GPIO.BCM)  # Use GPIO numbering (BCM)
+	# GPIO.setmode(GPIO.BOARD)  # Use physical pin numbering
+
+	# Set up a GPIO pin as input or output
+	# Pull-up mode : when idle, GPIO is considered at +3V. Switch can be connected to GND, and when closed, GPIO will fall down to GND
+	for pin in inputGPIO:
+		GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)		# Pin as input with pull-up resistor
+	#GPIO.setup(23, GPIO.OUT)  # Pin 23 as output
+
 
 
 # class for handling events in the main loop
@@ -89,6 +114,7 @@ def play_audio(audio_file):
 	except pygame.error:
 		# file does not exist
 		return False
+	pygame.mixer.music.set_endevent(pygame.USEREVENT)	# pygame event is triggered after playing is complete
 	pygame.mixer.music.play()
 	return True
 
@@ -108,7 +134,18 @@ def start_audio_thread(audio_file):
 	return True
 
 
-
+# display functions
+"""
+highlight_config = {
+	"songName": {"color": (255, 0, 0), "bold": True},		# Red and bold
+	"videoName": {"color": (0, 0, 139), "bold": False},		# Dark blue and regular
+	"sample1": {"color": (0, 128, 0), "bold": True},		# Green and bold
+	"sample2": {"color": (0, 128, 0), "bold": True},		# Green and bold
+	"sample3": {"color": (0, 128, 0), "bold": True},		# Green and bold
+	"audio": {"color": (128, 0, 128), "bold": True},		# Purple and bold
+	"video": {"color": (0, 0, 0), "bold": False}			# Black and regular
+}
+"""
 def render_navigation(screen, previous_entry, next_entry, font, screen_width):
 	arrow_color = (0, 0, 0)
 	nav_y = 0  # Top of screen
@@ -164,7 +201,7 @@ def displaySongInfo(screen, song, volume_percent, rate_percent, previous_entry="
 	render_navigation(screen, previous_entry, next_entry, regular_font, screen_width)
 
 	# Song title
-	song_color = highlight_config.get("songName", {}).get("color", (0, 0, 0))
+	song_color = highlight_config.get("songName", {}).get("color", (64,224,208))
 	song_title_surface = title_font.render(song.song, True, song_color)
 	screen.blit(song_title_surface, (10, 30))
 
@@ -183,14 +220,14 @@ def displaySongInfo(screen, song, volume_percent, rate_percent, previous_entry="
 	# AUDIO
 	audio_label = f"{int(volume_percent * 100)}%"
 	audio_config = highlight_config.get("audio", {})
-	audio_color = audio_config.get("color", (0, 0, 0))
+	audio_color = audio_config.get("color", (0, 128, 0))
 	audio_font = bottom_bold_font if audio_config.get("bold", False) else bottom_regular_font
 	audio_surface = audio_font.render(f"AUDIO {audio_label}", True, audio_color)
 	screen.blit(audio_surface, (10, screen_height - 30))  # ~10px from bottom
 
 	# VIDEO with rate_percent
 	video_config = highlight_config.get("video", {})
-	video_color = video_config.get("color", (0, 0, 0))
+	video_color = video_config.get("color", (0, 128, 0))
 	video_font = bottom_bold_font if video_config.get("bold", False) else bottom_regular_font
 	video_text = f"VIDEO {int(rate_percent * 100)}%"
 	video_surface = video_font.render(video_text, True, video_color)
@@ -198,22 +235,14 @@ def displaySongInfo(screen, song, volume_percent, rate_percent, previous_entry="
 
 	pygame.display.flip()
 
-
-
-"""
-highlight_config = {
-	"songName": {"color": (255, 0, 0), "bold": True},	   # Red and bold
-	"videoName": {"color": (0, 0, 139), "bold": False},	 # Dark blue and regular
-	"sample1": {"color": (0, 128, 0), "bold": True},		# Green and bold
-	"audio": {"color": (128, 0, 128), "bold": True},		# Purple and bold
-	"video": {"color": (0, 0, 0), "bold": False}			# Black and regular
-}
-"""
 	
 	
 ########
 # MAIN #
 ########
+# init raspi hardware
+if raspiTarget:
+	init_gpio ()
 
 # Load the JSON data from the file
 with open('./playlist.json', 'r', encoding='utf-8') as file:
@@ -255,9 +284,10 @@ cv2.moveWindow('Video', 800, 0)
 
 # Main loop
 eq = EventQueue()		# event queue to manage the events happening in the main loop
-# force display of 1st song in playlist and video by faking a press on "previous" key; this will force the display in its turn
-eq.record_event("key", ["previous"])
+# force display of 1st song in playlist and video
+eq.record_event("key", ["first song"])
 
+		
 
 while running:
 
@@ -265,6 +295,10 @@ while running:
 	for event in pygame.event.get():
 		if event.type == pygame.QUIT:
 			running = False
+
+		if event.type == pygame.USEREVENT:
+			# audio playing is complete, let's record an event to stop playing and update the display
+			eq.record_event("audio", ["stop"])		
 
 	# Handle main loop events
 	next_event = eq.get_next_event()
@@ -283,11 +317,14 @@ while running:
 				break
 
 			# previous
-			if next_event.values [0] == "previous":
+			if next_event.values [0] == "previous" or next_event.values [0] == "first song":
 				# get video file name that is currently playing
 				try:
 					previousVideoFileName = videoPath + playList [playListIndex].video
 				except (ValueError, IndexError):
+					previousVideoFileName = ""
+				# in case of 1st song, force display of video by specifying no previous video
+				if next_event.values [0] == "first song":
 					previousVideoFileName = ""
 				# previous in playlist
 				playListIndex = max(playListIndex - 1, 0)
@@ -295,9 +332,8 @@ while running:
 				playListNext = min(playListIndex + 1, len(playList) - 1)
 				# record new event to update the display
 				eq.record_event("display", {
-					"songName": {"bold": True, "color": (64,224,208)},	# turquoise and bold
-					"audio": {"bold": True, "color": (0, 128, 0)},		# green and bold
-					"video": {"bold": True, "color": (0, 128, 0)}		# green and bold
+					"audio": {"bold": True, "color": audioColor},
+					"video": {"bold": True, "color": videoColor}
 				})
 				# record event to play video
 				try:
@@ -323,9 +359,8 @@ while running:
 				playListNext = min(playListIndex + 1, len(playList) - 1)
 				# record new event to update the display
 				eq.record_event("display", {
-					"songName": {"bold": True, "color": (64,224,208)},	# turquoise and bold
-					"audio": {"bold": True, "color": (0, 128, 0)},		# green and bold
-					"video": {"bold": True, "color": (0, 128, 0)}		# green and bold
+					"audio": {"bold": True, "color": audioColor},
+					"video": {"bold": True, "color": videoColor}
 				})
 				# record event to play video
 				try:
@@ -351,7 +386,7 @@ while running:
 					eq.record_event("audio", ["stop"])
 				# if not playing, then we should initiate playing
 				else:
-					sampleString = "sample" + str (int (next_event.values [1]) - 1)
+					sampleString = "sample" + next_event.values [1]
 					eq.record_event("audio", ["play", sampleString, sampleFileName])
 
 		# audio events
@@ -361,10 +396,11 @@ while running:
 			if next_event.values [0] == "stop":
 				stop_audio()
 				playing = False
+				audioColor = colorNoError
 				# record new event to update the display
 				eq.record_event("display", {
-					"songName": {"bold": True, "color": (64,224,208)},	# turquoise and bold
-					"audio": {"bold": True, "color": (0, 128, 0)}		# green and bold
+					"audio": {"bold": True, "color": audioColor},
+					"video": {"bold": True, "color": videoColor}
 				})
 
 			# play
@@ -375,15 +411,17 @@ while running:
 				playing = start_audio_thread (sampleFileName)
 				# record new event to update the display, based on the result of playing (sample exists or not)
 				if playing:
+					audioColor = colorNoError
 					eq.record_event("display", {
-						"songName": {"bold": True, "color": (64,224,208)},	# turquoise and bold
-						"audio": {"bold": True, "color": (0, 128, 0)},		# green and bold
-						sampleString: {"bold": False, "color": (0, 0, 255)}	# blue
+						sampleString: {"bold": False, "color": (0, 0, 255)},
+						"audio": {"bold": True, "color": audioColor},
+						"video": {"bold": True, "color": videoColor}
 					})
 				else:
+					audioColor = colorWarning
 					eq.record_event("display", {
-						"songName": {"bold": True, "color": (64,224,208)},	# turquoise and bold
-						"audio": {"bold": True, "color": (255, 165, 0)}		# orange (ie. warning) and bold
+						"audio": {"bold": True, "color": audioColor},
+						"video": {"bold": True, "color": videoColor}
 					})
 
 		# video events
@@ -398,13 +436,19 @@ while running:
 					cap = cv2.VideoCapture(videoFileName)						# cap.isOpened() returns False if file does not exist
 					# in case file does not exists, cap.isOpened () will return False
 					if not cap.isOpened():
-						# file does not exist, update song info
+						# file does not exist, update display
+						videoColor = colorWarning
 						eq.record_event("display", {
-							"songName": {"bold": True, "color": (64,224,208)},	# turquoise and bold
-							"audio": {"bold": True, "color": (255, 165, 0)},	# orange (ie. warning) and bold
-							"video": {"bold": True, "color": (255, 165, 0)}		# orange (ie. warning) and bold
+							"audio": {"bold": True, "color": audioColor},
+							"video": {"bold": True, "color": videoColor}
 						})
 					else:
+						# file exists, update display
+						videoColor = colorNoError
+						eq.record_event("display", {
+							"audio": {"bold": True, "color": audioColor},
+							"video": {"bold": True, "color": videoColor}
+						})
 						# determine startPos, and set it to video
 						if next_event.values [3] == "beginning":
 							startPos = 0
@@ -444,22 +488,44 @@ while running:
 			eq.record_event("key", ["previous"])
 		if keyPressed == ord ('n'):
 			eq.record_event("key", ["next"])
-		if keyPressed == ord ('1'):
-			eq.record_event("key", ["sample", "1"])
-		if keyPressed == ord ('2'):
-			eq.record_event("key", ["sample", "2"])
-		if keyPressed == ord ('3'):
-			eq.record_event("key", ["sample", "3"])
+		if keyPressed in range(ord ('1'), ord ('9')):
+			eq.record_event("key", ["sample", chr (keyPressed)])
 
 	# check if raspi rotary
 	if raspiTarget:
-		pass
 		# check if volume is changed
 		# button would switch between audio volume and video rate
 
+		# Read the state of each GPIO to determine which are on and off, ie. which key is pressed or not
+		for pin in inputGPIO:
+			# LOW means key is pressed, HIGH means key is not pressed; we change this so True=pressed, False=not pressed
+			if not GPIO.input(pin):
+				# key is pressed, add key event
+				eq.record_event("key", [inputGPIOName [inputGPIO.index (pin)]])
+#HERE: potential problem due to sample1 vs sample,1
+
+"""
+# Callback function for button press
+def button_callback(channel):
+	print("Button was pressed!")
+
+# Add event detection
+GPIO.add_event_detect(18, GPIO.FALLING, callback=button_callback, bouncetime=300)
+
+try:
+	while True:
+		time.sleep(1)  # Keep the program running
+except KeyboardInterrupt:
+	print("Exiting program")
+finally:
+	GPIO.cleanup()  # Clean up GPIO on exit
+"""
 
 
 # Cleanup
+if raspiTarget:
+	GPIO.cleanup()		# Clean up GPIO on exit
+
 stop_audio()
 if cap is not None:
 	cap.release()
