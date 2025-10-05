@@ -17,10 +17,9 @@ if raspiTarget:
 #TO DO
 # test: audio file does not exist, video file does not exist
 # highlight_config: make sure we display the right things at the right time (error mgmt)
-# raspi keys
-# raspi rotary
-# display and approve samples only if they are in the playlist !!!
-# how to solve "sample1" vs. "sample", "1"
+# raspi keys and raspi rotary to be tested
+# invert video for the rotary changes (audio or video) to indicate what is changing
+
 
 
 # Global variables
@@ -30,6 +29,7 @@ videoPath = "./video/"
 audioPath = "./audio/"
 running = True
 playing = False
+rotaryChangesVolume = True
 audioVolume = 0.5
 videoRate = 1.0
 playListIndex = 0
@@ -38,8 +38,12 @@ colorError = [255, 0, 0]
 colorWarning = [255, 165, 0]
 audioColor = colorNoError
 videoColor = colorNoError
-inputGPIO = [18, 19, 20, 21, 22]
-inputGPIOName = ["previous", "next", "sample1", "sample2", "sample3"]
+keyGPIO = [18, 19, 20, 21, 22]
+keyGPIOName = [["previous"], ["next"], ["sample","1"], ["sample","2"], ["sample","3"]]
+rotaryGPIO = [17, 18, 27]
+rotaryGPIOName = ["CLK", "DT", "SW"]
+#rotaryLastState = GPIO.input(rotary_gpio("CLK"))
+rotaryLastState = False		# dummy value to start with
 
 
 # functions for raspi key capture and rotary capture
@@ -48,12 +52,29 @@ def init_gpio():
 	# Set GPIO mode (BCM or BOARD)
 	GPIO.setmode(GPIO.BCM)  # Use GPIO numbering (BCM)
 	# GPIO.setmode(GPIO.BOARD)  # Use physical pin numbering
-
-	# Set up a GPIO pin as input or output
-	# Pull-up mode : when idle, GPIO is considered at +3V. Switch can be connected to GND, and when closed, GPIO will fall down to GND
-	for pin in inputGPIO:
-		GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)		# Pin as input with pull-up resistor
 	#GPIO.setup(23, GPIO.OUT)  # Pin 23 as output
+
+	# Set up keys GPIOs
+	# Pull-up mode : when idle, GPIO is considered at +3V. Switch can be connected to GND, and when closed, GPIO will fall down to GND
+	for pin in keyGPIO:
+		GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)		# Pin as input with pull-up resistor
+
+	# Set up rotary GPIOs
+	for pin in rotaryGPIO:
+		GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)		# Pin as input with pull-up resistor
+		"""
+		pinName = rotaryGPIOName [rotaryGPIO.index (pin)]
+		if pinName == "SW":
+			GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)		# Pin as input with pull-up resistor
+		else:
+			GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)	# Pin as input with pull-down resistor
+		"""
+
+def rotary_gpio(name):
+	for pin in rotaryGPIOName:
+		if pin == name:
+			return rotaryGPIO [rotaryGPIOName.index (pin)]
+
 
 
 
@@ -213,9 +234,13 @@ def displaySongInfo(screen, song, volume_percent, rate_percent, previous_entry="
 	sample_start_y = 130
 	sample_spacing = 50
 	for i in range(3):
-		sample_value = song.sample[i] if i < len(song.sample) else "empty"
-		sample_surface = render_text(f"sample {i+1}", sample_value, f"sample{i+1}")
-		screen.blit(sample_surface, (10, sample_start_y + i * sample_spacing))
+		#sample_value = song.sample[i] if i < len(song.sample) else "empty"
+		#sample_surface = render_text(f"sample {i+1}", sample_value, f"sample{i+1}")
+		#screen.blit(sample_surface, (10, sample_start_y + i * sample_spacing))
+		# display samples only if samples are available
+		if i < len(song.sample):
+			sample_surface = render_text(f"sample {i+1}", song.sample[i], f"sample{i+1}")
+			screen.blit(sample_surface, (10, sample_start_y + i * sample_spacing))
 
 	# AUDIO
 	audio_label = f"{int(volume_percent * 100)}%"
@@ -472,12 +497,63 @@ while running:
 		# display video frame
 		cv2.imshow("Video", frame)
 
-	# check if raspi keypress
+	# check if raspi keypress or rotary
 	if raspiTarget:
-		pass
+		# RASPI KEYS
+		# Read the state of each GPIO to determine which are on and off, ie. which key is pressed or not
+		for pin in keyGPIO:
+			# LOW means key is pressed, HIGH means key is not pressed; we change this so True=pressed, False=not pressed
+			if not GPIO.input(pin):
+				# key is pressed, add key event
+				eq.record_event("key", keyGPIOName [keyGPIO.index (pin)])
+
+		# RASPI ROTARY
+		# check if audio volume or video rate is changed
+		# button would switch between audio volume and video rate
+		counter = audioVolume if rotaryChangesVolume else videoRate
+		rotaryCurrentState = GPIO.input(rotary_gpio("CLK"))
+
+		if rotaryCurrentState != rotaryLastState:			# Detect rotation
+			# new counter value
+			if GPIO.input(rotary_gpio("DT")) != rotaryCurrentState:
+				counter += 0.01  # Clockwise
+			else:
+				counter -= 0.01  # Counter-clockwise
+			# record display event to show change in the display
+			eq.record_event("display", {
+				"audio": {"bold": True, "color": audioColor},
+				"video": {"bold": True, "color": videoColor}
+			})
+		rotaryLastState = rotaryCurrentState
+
+		# cap and map new counter value to audioVolume or videoRate
+		if rotaryChangesVolume:
+			counter = max (0, counter)
+			counter = min (counter, 1.0)
+			audioVolume = counter
+		else:
+			counter = max (0.3, counter)	# lowest video rate would be 30%
+			counter = min (counter, 1.0)
+			videoRate = counter
+
+		# Detect button press
+		#if GPIO.input(SW) == GPIO.LOW:
+		if not GPIO.input(rotary_gpio("SW")):
+			rotaryChangesVolume = not rotaryChangesVolume
+			#print("Button Pressed!")
+			#sleep(0.3)  # Debounce delay
+
+			# record display event to show change in the display
+			eq.record_event("display", {
+				"audio": {"bold": True, "color": audioColor},
+				"video": {"bold": True, "color": videoColor}
+			})
+
+
+
 
 	# check if a key has been pressed; if so, then change display and video 
-	# Check key presses for 25ms
+	# Check key presses for 25ms; this 25ms also is used as a debouncer for raspi keypresses
 	# if key press, then break and the rest will be managed in the main loop
 	keyPressed = cv2.waitKey(25)
 	if keyPressed != -1:
@@ -488,38 +564,8 @@ while running:
 			eq.record_event("key", ["previous"])
 		if keyPressed == ord ('n'):
 			eq.record_event("key", ["next"])
-		if keyPressed in range(ord ('1'), ord ('9')):
+		if keyPressed in range(ord ('1'), ord ('3')):		# nomore than 3 samples per song, we don't have enough keys on raspi!
 			eq.record_event("key", ["sample", chr (keyPressed)])
-
-	# check if raspi rotary
-	if raspiTarget:
-		# check if volume is changed
-		# button would switch between audio volume and video rate
-
-		# Read the state of each GPIO to determine which are on and off, ie. which key is pressed or not
-		for pin in inputGPIO:
-			# LOW means key is pressed, HIGH means key is not pressed; we change this so True=pressed, False=not pressed
-			if not GPIO.input(pin):
-				# key is pressed, add key event
-				eq.record_event("key", [inputGPIOName [inputGPIO.index (pin)]])
-#HERE: potential problem due to sample1 vs sample,1
-
-"""
-# Callback function for button press
-def button_callback(channel):
-	print("Button was pressed!")
-
-# Add event detection
-GPIO.add_event_detect(18, GPIO.FALLING, callback=button_callback, bouncetime=300)
-
-try:
-	while True:
-		time.sleep(1)  # Keep the program running
-except KeyboardInterrupt:
-	print("Exiting program")
-finally:
-	GPIO.cleanup()  # Clean up GPIO on exit
-"""
 
 
 # Cleanup
