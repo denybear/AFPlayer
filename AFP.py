@@ -7,7 +7,6 @@ import cv2
 import os
 import json
 import random
-import numpy as np
 import threading
 from collections import deque
 if raspiTarget:
@@ -291,11 +290,7 @@ screen_width, screen_height = display_info.current_w, display_info.current_h
 screen = pygame.display.set_mode((480, 320))
 pygame.display.set_caption("Song Info Display")
 
-# Create a blank image for OpenCV
-opencv_image = np.zeros((600, 800, 3), dtype=np.uint8)
 # Move OpenCV window to the secondary screen
-#cv2.namedWindow("OpenCV Window", cv2.WINDOW_NORMAL)
-#cv2.resizeWindow("OpenCV Window", 800, 600)
 #cv2.moveWindow("OpenCV Window", screen_width + 100, 100)  # Adjust position for secondary screen
 # Create a named window; the flags control window behavior
 # cv2.WINDOW_NORMAL allows resizing, cv2.WINDOW_AUTOSIZE fixes it to image size
