@@ -9,16 +9,18 @@ import json
 import random
 import threading
 from collections import deque
+from operator import attrgetter
 if raspiTarget:
 	import RPi.GPIO as GPIO
-
+from screeninfo import get_monitors
 
 #TO DO
 # test: audio file does not exist, video file does not exist
 # highlight_config: make sure we display the right things at the right time (error mgmt)
 # raspi keys and raspi rotary to be tested
 # invert video for the rotary changes (audio or video) to indicate what is changing
-
+# noVideo case to be done
+# Control panel : size and location of text should adapt to the size of screen
 
 
 # Global variables
@@ -275,38 +277,51 @@ with open('./playlist.json', 'r', encoding='utf-8') as file:
 # Create a list of Song objects
 playList = [Song(item['song'], item['video'], item['sample'], item['startPosition']) for item in data]
 
-
 # Initialize Pygame
 pygame.init()
 pygame.mixer.init()
 pygame.mixer.music.set_volume (audioVolume)
 
-# Get display information
-display_info = pygame.display.Info()
-screen_width, screen_height = display_info.current_w, display_info.current_h
+# Manage monitors: primary and secondary
+secondary_monitors = []
+for m in get_monitors():
+	if m.is_primary:					# primary monitor will always get the control panel
+		primaryMon = m					# there should be only one primary monitor, no need for a list
+		print (primaryMon)
+	else:
+		secondary_monitors.append (m)
 
-# Create a Pygame window on the primary screen
-#pygame_screen = pygame.display.set_mode((800, 600), pygame.RESIZABLE)
-screen = pygame.display.set_mode((480, 320))
+# In case of 1 monitor only, we don't display the video
+if len (secondary_monitors) == 0:
+	videoDisplay = False
+else:
+	# Go through the list of secondary monitors; we need 2 monitors only, one primary, one secondary.
+	# In case of more than 2 secondary monitors, take only the one that has the biggest resolution (width, height), scrap the rest
+	videoDisplay = True
+	secondaryMon = max(secondary_monitors, key = attrgetter('width', 'height'))
+	print (secondaryMon)
+
+
+# Create windows
+# primary monitor will always get the control panel
+screen = pygame.display.set_mode((primaryMon.width, primaryMon.height))
 pygame.display.set_caption("Song Info Display")
 
-# Move OpenCV window to the secondary screen
-#cv2.moveWindow("OpenCV Window", screen_width + 100, 100)  # Adjust position for secondary screen
+# secondary monitor will get the video
 # Create a named window; the flags control window behavior
-# cv2.WINDOW_NORMAL allows resizing, cv2.WINDOW_AUTOSIZE fixes it to image size
-cv2.namedWindow('Video', cv2.WINDOW_NORMAL)
-# Resize the window to a specific size (width, height)
-cv2.resizeWindow('Video', 800, 600)
-# Move the window to a specific location on the screen (x, y)
-cv2.moveWindow('Video', 800, 0)
-
+# In this case, we don't want any title bar or border
+cv2.namedWindow('Video', cv2.WND_PROP_FULLSCREEN)
+cv2.setWindowProperty('Video', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+# Resize the window to a specific size (width, height) : this is useless as we have WINDOW_FULLSCREEN as a window property
+#cv2.resizeWindow('Video', secondaryMon.width, secondaryMon.height)
+# Move the window to the secondary monitor (secondaryMon.x, secondaryMon.y)
+cv2.moveWindow('Video', secondaryMon.x, secondaryMon.y)
 
 
 # Main loop
 eq = EventQueue()		# event queue to manage the events happening in the main loop
 # force display of 1st song in playlist and video
 eq.record_event("key", ["first song"])
-
 		
 
 while running:
