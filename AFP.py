@@ -2,6 +2,9 @@
 raspiTarget = False
 pcTarget = True
 
+
+import sys
+sys.path.append('./')
 import pygame
 import cv2
 import os
@@ -14,6 +17,8 @@ if raspiTarget:
 	import RPi.GPIO as GPIO
 from screeninfo import get_monitors
 import pyaudio
+from control_screen import displaySongInfo
+from control_screen import configureScreenAreas
 
 
 #TO DO
@@ -21,10 +26,9 @@ import pyaudio
 # highlight_config: make sure we display the right things at the right time (error mgmt)
 # raspi keys and raspi rotary to be tested
 # invert video for the rotary changes (audio or video) to indicate what is changing
-# Control panel : size and location of text should adapt to the size of screen
 # Control panel touch ready
-# get key in case noVideoHW
-
+# refactor in multiple files?
+# sample X : display, play, etc
 
 
 # Global variables
@@ -36,6 +40,7 @@ videoPath = "./video/"
 audioPath = "./audio/"
 running = True
 playing = False
+dragging = None
 rotaryChangesVolume = True
 audioVolume = 0.5
 videoRate = 1.0
@@ -125,7 +130,7 @@ class EventQueue:
 
 # object representing a tuple: name of the song, name of the video/picture, name of samples 
 class Song:
-	def __init__(self, song="", video="", sample=["","",""], startPosition="beginning"):
+	def __init__(self, song="", video="", sample=["","","","","","","","",""], startPosition="beginning"):
 		self.song = song
 		self.video = video
 		self.sample = sample
@@ -161,112 +166,6 @@ def start_audio_thread(audio_file):
 	audio_thread.start()
 	return True
 
-
-# display functions
-"""
-highlight_config = {
-	"songName": {"color": (255, 0, 0), "bold": True},		# Red and bold
-	"videoName": {"color": (0, 0, 139), "bold": False},		# Dark blue and regular
-	"sample1": {"color": (0, 128, 0), "bold": True},		# Green and bold
-	"sample2": {"color": (0, 128, 0), "bold": True},		# Green and bold
-	"sample3": {"color": (0, 128, 0), "bold": True},		# Green and bold
-	"audio": {"color": (128, 0, 128), "bold": True},		# Purple and bold
-	"video": {"color": (0, 0, 0), "bold": False}			# Black and regular
-}
-"""
-def render_navigation(screen, previous_entry, next_entry, font, screen_width):
-	arrow_color = (0, 0, 0)
-	nav_y = 0  # Top of screen
-	arrow_width = 10
-	spacing = 10
-	nav_offset = arrow_width + spacing
-
-	# Previous entry and left arrow
-	prev_text_surface = font.render(previous_entry, True, arrow_color)
-	screen.blit(prev_text_surface, (nav_offset + arrow_width, nav_y))
-	pygame.draw.polygon(screen, arrow_color, [
-		(nav_offset, nav_y + 5),
-		(nav_offset, nav_y + 25),
-		(nav_offset - arrow_width, nav_y + 15)
-	])
-
-	# Next entry and right arrow
-	next_text_surface = font.render(next_entry, True, arrow_color)
-	next_text_width = next_text_surface.get_width()
-	next_text_x = screen_width - nav_offset - arrow_width - next_text_width
-	screen.blit(next_text_surface, (next_text_x, nav_y))
-	pygame.draw.polygon(screen, arrow_color, [
-		(screen_width - nav_offset, nav_y + 5),
-		(screen_width - nav_offset + arrow_width, nav_y + 15),
-		(screen_width - nav_offset, nav_y + 25)
-	])
-
-def displaySongInfo(screen, song, volume_percent, rate_percent, previous_entry="", next_entry="", highlight_config=None):
-	screen.fill((255, 255, 255))  # white background
-
-	pygame.font.init()
-	def get_font(size, bold=False):
-		return pygame.font.SysFont('Arial', int(size * 1.2), bold=bold)
-
-	# Fonts
-	title_font = get_font(32 * 1.1, bold=True)  # Song title 10% bigger
-	regular_font = get_font(20)
-	bold_font = get_font(20, bold=True)
-
-	bottom_regular_font = pygame.font.SysFont('Arial', 20)
-	bottom_bold_font = pygame.font.SysFont('Arial', 20, bold=True)
-
-	highlight_config = highlight_config or {}
-
-	def render_text(label, value, key, font_override=None, color_override=None):
-		text_str = f"{label}: {value}"
-		config = highlight_config.get(key, {})
-		color = color_override if color_override else config.get("color", (0, 0, 0))
-		font = font_override if font_override else (bold_font if config.get("bold", False) else regular_font)
-		return font.render(text_str, True, color)
-
-	screen_width, screen_height = screen.get_size()
-	render_navigation(screen, previous_entry, next_entry, regular_font, screen_width)
-
-	# Song title
-	song_color = highlight_config.get("songName", {}).get("color", (64,224,208))
-	song_title_surface = title_font.render(song.song, True, song_color)
-	screen.blit(song_title_surface, (10, 30))
-
-	# Video name
-	video_name_surface = render_text("video", song.video, "videoName", font_override=regular_font, color_override=(0, 0, 139))
-	screen.blit(video_name_surface, (10, 80))
-
-	# Samples
-	sample_start_y = 130
-	sample_spacing = 50
-	for i in range(3):
-		#sample_value = song.sample[i] if i < len(song.sample) else "empty"
-		#sample_surface = render_text(f"sample {i+1}", sample_value, f"sample{i+1}")
-		#screen.blit(sample_surface, (10, sample_start_y + i * sample_spacing))
-		# display samples only if samples are available
-		if i < len(song.sample):
-			sample_surface = render_text(f"sample {i+1}", song.sample[i], f"sample{i+1}")
-			screen.blit(sample_surface, (10, sample_start_y + i * sample_spacing))
-
-	# AUDIO
-	audio_label = f"{int(volume_percent * 100)}%"
-	audio_config = highlight_config.get("audio", {})
-	audio_color = audio_config.get("color", (0, 128, 0)) if isAudioHW else (255, 0, 0)	# in case no audio HW, then color is always RED
-	audio_font = bottom_bold_font if audio_config.get("bold", False) else bottom_regular_font
-	audio_surface = audio_font.render(f"AUDIO {audio_label}", True, audio_color)
-	screen.blit(audio_surface, (10, screen_height - 30))  # ~10px from bottom
-
-	# VIDEO with rate_percent
-	video_config = highlight_config.get("video", {})
-	video_color = video_config.get("color", (0, 128, 0)) if isVideoHW else (255, 0, 0)	# in case no video HW, then color is always RED
-	video_font = bottom_bold_font if video_config.get("bold", False) else bottom_regular_font
-	video_text = f"VIDEO {int(rate_percent * 100)}%"
-	video_surface = video_font.render(video_text, True, video_color)
-	screen.blit(video_surface, (screen_width - video_surface.get_width() - 10, screen_height - 30))  # ~10px from bottom
-
-	pygame.display.flip()
-
 	
 	
 ########
@@ -288,6 +187,7 @@ playList = [Song(item['song'], item['video'], item['sample'], item['startPositio
 # Initialize PyAudio
 p = pyaudio.PyAudio()
 isAudioHW = False
+audioColor = colorError
 # List all audio devices
 for i in range(p.get_device_count()):
 	device_info = p.get_device_info_by_index(i)
@@ -296,6 +196,7 @@ for i in range(p.get_device_count()):
 	# determine if we have the right device (USB sound card or I2S soundcard or embedded jack)
 	if device_info ['name'] == "Headphones 1 (Realtek HD Audio 2nd output with SST)":
 		isAudioHW = True
+		audioColor = colorNoError
 		primaryAudio = device_info
 # Terminate PyAudio
 p.terminate()
@@ -312,10 +213,13 @@ for m in get_monitors():
 # In case of 1 monitor only, we don't display the video
 if len (secondary_monitors) == 0:
 	isVideoHW = False
+	videoColor = colorError
+
 else:
 	# Go through the list of secondary monitors; we need 2 monitors only, one primary, one secondary.
 	# In case of more than 2 secondary monitors, take only the one that has the biggest resolution (width, height), scrap the rest
 	isVideoHW = True
+	videoColor = colorNoError
 	secondaryVideo = max(secondary_monitors, key = attrgetter('width', 'height'))
 	print (secondaryVideo)
 
@@ -330,6 +234,8 @@ pygame.mixer.music.set_volume (audioVolume)
 # primary monitor will always get the control panel
 screen = pygame.display.set_mode((primaryVideo.width, primaryVideo.height))
 pygame.display.set_caption("Song Info Display")
+# Configure screen layout
+configureScreenAreas(0.1, 0.2, 0.5, 0.2)
 
 # secondary monitor will get the video
 # Create a named window; the flags control window behavior
@@ -356,9 +262,47 @@ while running:
 		if event.type == pygame.QUIT:
 			running = False
 
-		if event.type == pygame.USEREVENT:
+		elif event.type == pygame.USEREVENT:
 			# audio playing is complete, let's record an event to stop playing and update the display
 			eq.record_event("audio", ["stop"])		
+
+		elif event.type == pygame.MOUSEBUTTONDOWN:
+			if slider_info["video_slider_rect"].collidepoint(event.pos):
+				dragging = "video"
+			elif slider_info["audio_slider_rect"].collidepoint(event.pos):
+				dragging = "audio"
+			elif slider_info["arrow_left_rect"].collidepoint(event.pos):
+				print("Previous song clicked")
+			elif slider_info["arrow_right_rect"].collidepoint(event.pos):
+				print("Next song clicked")
+			else:
+				for rect, label in slider_info["sample_rects"]:
+					if rect.collidepoint(event.pos):
+						print(f"Sample clicked: {label}")
+
+		elif event.type == pygame.MOUSEBUTTONUP:
+			dragging = None
+
+		elif event.type == pygame.MOUSEMOTION and dragging:
+			mx = event.pos[0]
+			if dragging == "video":
+				videoRate = max(0.0, min(1.0, (mx - slider_info["video_slider_rect"].x) / slider_info["video_slider_rect"].width))
+			elif dragging == "audio":
+				audioVolume = max(0.0, min(1.0, (mx - slider_info["audio_slider_rect"].x) / slider_info["audio_slider_rect"].width))
+			#slider_info = displaySongInfo(screen, song, volume_percent, rate_percent, "Previous Song", "Next Song", highlight_config)
+
+		elif event.type == pygame.KEYDOWN:
+			# key press
+			keyPressed = pygame.key.name(event.key)
+			if keyPressed == 'q':
+				eq.record_event("key", ["quit"])
+			if keyPressed == 'p':
+				eq.record_event("key", ["previous"])
+			if keyPressed == 'n':
+				eq.record_event("key", ["next"])
+			if keyPressed in ('1', '2', '3', '4', '5', '6', '7', '8', '9'):		# nomore than 9 samples per song, we don't have enough keys on raspi!
+				eq.record_event("key", ["sample", keyPressed])
+
 
 	# Handle main loop events
 	next_event = eq.get_next_event()
@@ -366,7 +310,7 @@ while running:
 
 		# display events
 		if next_event.label == "display":
-			displaySongInfo (screen, playList [playListIndex], volume_percent=audioVolume, rate_percent=videoRate, previous_entry=playList [playListPrevious].song, next_entry=playList [playListNext].song, highlight_config=next_event.values)
+			slider_info = displaySongInfo (screen, playList [playListIndex], volume_percent=audioVolume, rate_percent=videoRate, previous_entry=playList [playListPrevious].song, next_entry=playList [playListNext].song, highlight_config=next_event.values)
 
 		# key events
 		if next_event.label == "key":
@@ -392,9 +336,10 @@ while running:
 				playListNext = min(playListIndex + 1, len(playList) - 1)
 				# record new event to update the display
 				eq.record_event("display", {
-					"audio": {"bold": True, "color": audioColor},
-					"video": {"bold": True, "color": videoColor}
+					"video_rate": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": videoColor, "font_name": "arial", "spacing": 1.0},
+					"audio_volume": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": audioColor, "font_name": "arial", "spacing": 1.0}
 				})
+				
 				# record event to play video
 				try:
 					videoFileName = videoPath + playList [playListIndex].video
@@ -419,8 +364,8 @@ while running:
 				playListNext = min(playListIndex + 1, len(playList) - 1)
 				# record new event to update the display
 				eq.record_event("display", {
-					"audio": {"bold": True, "color": audioColor},
-					"video": {"bold": True, "color": videoColor}
+					"video_rate": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": videoColor, "font_name": "arial", "spacing": 1.0},
+					"audio_volume": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": audioColor, "font_name": "arial", "spacing": 1.0}
 				})
 				# record event to play video
 				try:
@@ -459,8 +404,8 @@ while running:
 				audioColor = colorNoError
 				# record new event to update the display
 				eq.record_event("display", {
-					"audio": {"bold": True, "color": audioColor},
-					"video": {"bold": True, "color": videoColor}
+					"video_rate": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": videoColor, "font_name": "arial", "spacing": 1.0},
+					"audio_volume": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": audioColor, "font_name": "arial", "spacing": 1.0}
 				})
 
 			# play
@@ -472,16 +417,19 @@ while running:
 				# record new event to update the display, based on the result of playing (sample exists or not)
 				if playing:
 					audioColor = colorNoError
+#*********HERE********* samplestring !!!
 					eq.record_event("display", {
-						sampleString: {"bold": False, "color": (0, 0, 255)},
-						"audio": {"bold": True, "color": audioColor},
-						"video": {"bold": True, "color": videoColor}
+						sampleString: {"font_size": 0.05, "bold": False, "italic": False, "inverse": False, "color": (0, 100, 0), "font_name": "couriernew", "spacing": 1.5},
+						"video_rate": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": videoColor, "font_name": "arial", "spacing": 1.0},
+						"audio_volume": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": audioColor, "font_name": "arial", "spacing": 1.0}
+
+
 					})
 				else:
 					audioColor = colorWarning
 					eq.record_event("display", {
-						"audio": {"bold": True, "color": audioColor},
-						"video": {"bold": True, "color": videoColor}
+						"video_rate": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": videoColor, "font_name": "arial", "spacing": 1.0},
+						"audio_volume": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": audioColor, "font_name": "arial", "spacing": 1.0}
 					})
 
 		# video events
@@ -501,15 +449,15 @@ while running:
 							# file does not exist, update display
 							videoColor = colorWarning
 							eq.record_event("display", {
-								"audio": {"bold": True, "color": audioColor},
-								"video": {"bold": True, "color": videoColor}
+								"video_rate": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": videoColor, "font_name": "arial", "spacing": 1.0},
+								"audio_volume": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": audioColor, "font_name": "arial", "spacing": 1.0}
 							})
 						else:
 							# file exists, update display
 							videoColor = colorNoError
 							eq.record_event("display", {
-								"audio": {"bold": True, "color": audioColor},
-								"video": {"bold": True, "color": videoColor}
+								"video_rate": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": videoColor, "font_name": "arial", "spacing": 1.0},
+								"audio_volume": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": audioColor, "font_name": "arial", "spacing": 1.0}
 							})
 							# determine startPos, and set it to video
 							if next_event.values [3] == "beginning":
@@ -533,6 +481,9 @@ while running:
 			continue
 		# display video frame
 		cv2.imshow("Video", frame)
+#***********HERE********** should we wait for some milliseconds ??? define the video rate
+
+
 
 	# check if raspi keypress or rotary
 	if raspiTarget:
@@ -558,8 +509,8 @@ while running:
 				counter -= 0.01  # Counter-clockwise
 			# record display event to show change in the display
 			eq.record_event("display", {
-				"audio": {"bold": True, "color": audioColor},
-				"video": {"bold": True, "color": videoColor}
+				"video_rate": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": videoColor, "font_name": "arial", "spacing": 1.0},
+				"audio_volume": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": audioColor, "font_name": "arial", "spacing": 1.0}
 			})
 		rotaryLastState = rotaryCurrentState
 
@@ -582,27 +533,9 @@ while running:
 
 			# record display event to show change in the display
 			eq.record_event("display", {
-				"audio": {"bold": True, "color": audioColor},
-				"video": {"bold": True, "color": videoColor}
+				"video_rate": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": videoColor, "font_name": "arial", "spacing": 1.0},
+				"audio_volume": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": audioColor, "font_name": "arial", "spacing": 1.0}
 			})
-
-
-
-
-	# check if a key has been pressed; if so, then change display and video 
-	# Check key presses for 25ms; this 25ms also is used as a debouncer for raspi keypresses
-	# if key press, then break and the rest will be managed in the main loop
-	keyPressed = cv2.waitKey(25)
-	if keyPressed != -1:
-		keyPressed &= 0xFF
-		if keyPressed == ord ('q'):
-			eq.record_event("key", ["quit"])
-		if keyPressed == ord ('p'):
-			eq.record_event("key", ["previous"])
-		if keyPressed == ord ('n'):
-			eq.record_event("key", ["next"])
-		if keyPressed in range(ord ('1'), ord ('3')):		# nomore than 3 samples per song, we don't have enough keys on raspi!
-			eq.record_event("key", ["sample", chr (keyPressed)])
 
 
 # Cleanup
