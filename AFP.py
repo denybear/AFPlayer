@@ -13,17 +13,23 @@ from operator import attrgetter
 if raspiTarget:
 	import RPi.GPIO as GPIO
 from screeninfo import get_monitors
+import pyaudio
+
 
 #TO DO
 # test: audio file does not exist, video file does not exist
 # highlight_config: make sure we display the right things at the right time (error mgmt)
 # raspi keys and raspi rotary to be tested
 # invert video for the rotary changes (audio or video) to indicate what is changing
-# noVideo case to be done
 # Control panel : size and location of text should adapt to the size of screen
+# Control panel touch ready
+# get key in case noVideoHW
+
 
 
 # Global variables
+isAudioHW = False
+isVideoHW = False
 audio_thread = None
 cap = None
 videoPath = "./video/"
@@ -246,14 +252,14 @@ def displaySongInfo(screen, song, volume_percent, rate_percent, previous_entry="
 	# AUDIO
 	audio_label = f"{int(volume_percent * 100)}%"
 	audio_config = highlight_config.get("audio", {})
-	audio_color = audio_config.get("color", (0, 128, 0))
+	audio_color = audio_config.get("color", (0, 128, 0)) if isAudioHW else (255, 0, 0)	# in case no audio HW, then color is always RED
 	audio_font = bottom_bold_font if audio_config.get("bold", False) else bottom_regular_font
 	audio_surface = audio_font.render(f"AUDIO {audio_label}", True, audio_color)
 	screen.blit(audio_surface, (10, screen_height - 30))  # ~10px from bottom
 
 	# VIDEO with rate_percent
 	video_config = highlight_config.get("video", {})
-	video_color = video_config.get("color", (0, 128, 0))
+	video_color = video_config.get("color", (0, 128, 0)) if isVideoHW else (255, 0, 0)	# in case no video HW, then color is always RED
 	video_font = bottom_bold_font if video_config.get("bold", False) else bottom_regular_font
 	video_text = f"VIDEO {int(rate_percent * 100)}%"
 	video_surface = video_font.render(video_text, True, video_color)
@@ -277,45 +283,64 @@ with open('./playlist.json', 'r', encoding='utf-8') as file:
 # Create a list of Song objects
 playList = [Song(item['song'], item['video'], item['sample'], item['startPosition']) for item in data]
 
-# Initialize Pygame
-pygame.init()
-pygame.mixer.init()
-pygame.mixer.music.set_volume (audioVolume)
 
-# Manage monitors: primary and secondary
+# Manage audio HW: select the right audio device for outputing sound
+# Initialize PyAudio
+p = pyaudio.PyAudio()
+isAudioHW = False
+# List all audio devices
+for i in range(p.get_device_count()):
+	device_info = p.get_device_info_by_index(i)
+	print(f"Device {i}: {device_info['name']}")
+
+	# determine if we have the right device (USB sound card or I2S soundcard or embedded jack)
+	if device_info ['name'] == "Headphones 1 (Realtek HD Audio 2nd output with SST)":
+		isAudioHW = True
+		primaryAudio = device_info
+# Terminate PyAudio
+p.terminate()
+
+# Manage video HW: primary and secondary monitors
 secondary_monitors = []
 for m in get_monitors():
 	if m.is_primary:					# primary monitor will always get the control panel
-		primaryMon = m					# there should be only one primary monitor, no need for a list
-		print (primaryMon)
+		primaryVideo = m				# there should be only one primary monitor, no need for a list
+		print (primaryVideo)
 	else:
 		secondary_monitors.append (m)
 
 # In case of 1 monitor only, we don't display the video
 if len (secondary_monitors) == 0:
-	videoDisplay = False
+	isVideoHW = False
 else:
 	# Go through the list of secondary monitors; we need 2 monitors only, one primary, one secondary.
 	# In case of more than 2 secondary monitors, take only the one that has the biggest resolution (width, height), scrap the rest
-	videoDisplay = True
-	secondaryMon = max(secondary_monitors, key = attrgetter('width', 'height'))
-	print (secondaryMon)
+	isVideoHW = True
+	secondaryVideo = max(secondary_monitors, key = attrgetter('width', 'height'))
+	print (secondaryVideo)
 
+
+
+# Initialize Pygame
+pygame.init()
+pygame.mixer.init(devicename=primaryAudio['name'])
+pygame.mixer.music.set_volume (audioVolume)
 
 # Create windows
 # primary monitor will always get the control panel
-screen = pygame.display.set_mode((primaryMon.width, primaryMon.height))
+screen = pygame.display.set_mode((primaryVideo.width, primaryVideo.height))
 pygame.display.set_caption("Song Info Display")
 
 # secondary monitor will get the video
 # Create a named window; the flags control window behavior
 # In this case, we don't want any title bar or border
-cv2.namedWindow('Video', cv2.WND_PROP_FULLSCREEN)
-cv2.setWindowProperty('Video', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
-# Resize the window to a specific size (width, height) : this is useless as we have WINDOW_FULLSCREEN as a window property
-#cv2.resizeWindow('Video', secondaryMon.width, secondaryMon.height)
-# Move the window to the secondary monitor (secondaryMon.x, secondaryMon.y)
-cv2.moveWindow('Video', secondaryMon.x, secondaryMon.y)
+if isVideoHW:
+	cv2.namedWindow('Video', cv2.WND_PROP_FULLSCREEN)
+	cv2.setWindowProperty('Video', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+	# Resize the window to a specific size (width, height) : this is useless as we have WINDOW_FULLSCREEN as a window property
+	#cv2.resizeWindow('Video', secondaryVideo.width, secondaryVideo.height)
+	# Move the window to the secondary monitor (secondaryVideo.x, secondaryVideo.y)
+	cv2.moveWindow('Video', secondaryVideo.x, secondaryVideo.y)
 
 
 # Main loop
@@ -429,7 +454,7 @@ while running:
 
 			# stop
 			if next_event.values [0] == "stop":
-				stop_audio()
+				if isAudioHW: stop_audio()
 				playing = False
 				audioColor = colorNoError
 				# record new event to update the display
@@ -443,7 +468,7 @@ while running:
 				# attempt to open audio file and play it
 				sampleString = next_event.values [1]
 				sampleFileName = next_event.values [2]
-				playing = start_audio_thread (sampleFileName)
+				playing = start_audio_thread (sampleFileName) if isAudioHW else False
 				# record new event to update the display, based on the result of playing (sample exists or not)
 				if playing:
 					audioColor = colorNoError
@@ -466,38 +491,40 @@ while running:
 			if next_event.values [0] == "play":
 				videoFileName = next_event.values [1]
 				previousVideoFileName = next_event.values [2]
-				# if video is same as previous, then don't restart video... we just carry on showing
-				if videoFileName != previousVideoFileName:
-					cap = cv2.VideoCapture(videoFileName)						# cap.isOpened() returns False if file does not exist
-					# in case file does not exists, cap.isOpened () will return False
-					if not cap.isOpened():
-						# file does not exist, update display
-						videoColor = colorWarning
-						eq.record_event("display", {
-							"audio": {"bold": True, "color": audioColor},
-							"video": {"bold": True, "color": videoColor}
-						})
-					else:
-						# file exists, update display
-						videoColor = colorNoError
-						eq.record_event("display", {
-							"audio": {"bold": True, "color": audioColor},
-							"video": {"bold": True, "color": videoColor}
-						})
-						# determine startPos, and set it to video
-						if next_event.values [3] == "beginning":
-							startPos = 0
+				# make sure video HW is on
+				if isVideoHW:
+					# if video is same as previous, then don't restart video... we just carry on showing
+					if videoFileName != previousVideoFileName:
+						cap = cv2.VideoCapture(videoFileName)						# cap.isOpened() returns False if file does not exist
+						# in case file does not exists, cap.isOpened () will return False
+						if not cap.isOpened():
+							# file does not exist, update display
+							videoColor = colorWarning
+							eq.record_event("display", {
+								"audio": {"bold": True, "color": audioColor},
+								"video": {"bold": True, "color": videoColor}
+							})
 						else:
-							startPos = random.randint (0, int(cap.get(cv2.CAP_PROP_FRAME_COUNT)))
-						# set start position
-						cap.set(cv2.CAP_PROP_POS_FRAMES, startPos)				
+							# file exists, update display
+							videoColor = colorNoError
+							eq.record_event("display", {
+								"audio": {"bold": True, "color": audioColor},
+								"video": {"bold": True, "color": videoColor}
+							})
+							# determine startPos, and set it to video
+							if next_event.values [3] == "beginning":
+								startPos = 0
+							else:
+								startPos = random.randint (0, int(cap.get(cv2.CAP_PROP_FRAME_COUNT)))
+							# set start position
+							cap.set(cv2.CAP_PROP_POS_FRAMES, startPos)				
 
 
 
 	# Perform non-event based functions, ie. video display and key capture
 
 	# display video (if exists)
-	if cap is not None and cap.isOpened():
+	if isVideoHW and (cap is not None and cap.isOpened()):
 		ret, frame = cap.read()
 
 		# If the video ends, restart it
@@ -582,8 +609,8 @@ while running:
 if raspiTarget:
 	GPIO.cleanup()		# Clean up GPIO on exit
 
-stop_audio()
-if cap is not None:
+if isAudioHW: stop_audio()
+if isVideoHW and cap is not None:
 	cap.release()
 cv2.destroyAllWindows()
 pygame.mixer.music.stop()
