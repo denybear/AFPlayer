@@ -15,10 +15,10 @@ from collections import deque
 from operator import attrgetter
 if raspiTarget:
 	import RPi.GPIO as GPIO
-from screeninfo import get_monitors
-import pyaudio
 from control_screen import displaySongInfo
 from control_screen import configureScreenAreas
+from detect_HW import detectAudioHW
+from detect_HW import detectVideoHW
 
 
 #TO DO
@@ -32,8 +32,6 @@ from control_screen import configureScreenAreas
 
 
 # Global variables
-isAudioHW = False
-isVideoHW = False
 audio_thread = None
 cap = None
 videoPath = "./video/"
@@ -48,8 +46,6 @@ playListIndex = 0
 colorNoError = [0, 128, 0]
 colorError = [255, 0, 0]
 colorWarning = [255, 165, 0]
-audioColor = colorNoError
-videoColor = colorNoError
 keyGPIO = [18, 19, 20, 21, 22]
 keyGPIOName = [["previous"], ["next"], ["sample","1"], ["sample","2"], ["sample","3"]]
 rotaryGPIO = [17, 18, 27]
@@ -182,48 +178,10 @@ with open('./playlist.json', 'r', encoding='utf-8') as file:
 # Create a list of Song objects
 playList = [Song(item['song'], item['video'], item['sample'], item['startPosition']) for item in data]
 
-
 # Manage audio HW: select the right audio device for outputing sound
-# Initialize PyAudio
-p = pyaudio.PyAudio()
-isAudioHW = False
-audioColor = colorError
-# List all audio devices
-for i in range(p.get_device_count()):
-	device_info = p.get_device_info_by_index(i)
-	print(f"Device {i}: {device_info['name']}")
-
-	# determine if we have the right device (USB sound card or I2S soundcard or embedded jack)
-	if device_info ['name'] == "Headphones 1 (Realtek HD Audio 2nd output with SST)":
-		isAudioHW = True
-		audioColor = colorNoError
-		primaryAudio = device_info
-# Terminate PyAudio
-p.terminate()
-
+isAudioHW, audioColor, primaryAudio = detectAudioHW ("Headphones 1 (Realtek HD Audio 2nd output with SST)")
 # Manage video HW: primary and secondary monitors
-secondary_monitors = []
-for m in get_monitors():
-	if m.is_primary:					# primary monitor will always get the control panel
-		primaryVideo = m				# there should be only one primary monitor, no need for a list
-		print (primaryVideo)
-	else:
-		secondary_monitors.append (m)
-
-# In case of 1 monitor only, we don't display the video
-if len (secondary_monitors) == 0:
-	isVideoHW = False
-	videoColor = colorError
-
-else:
-	# Go through the list of secondary monitors; we need 2 monitors only, one primary, one secondary.
-	# In case of more than 2 secondary monitors, take only the one that has the biggest resolution (width, height), scrap the rest
-	isVideoHW = True
-	videoColor = colorNoError
-	secondaryVideo = max(secondary_monitors, key = attrgetter('width', 'height'))
-	print (secondaryVideo)
-
-
+isVideoHW, videoColor, primaryVideo, secondaryVideo = detectVideoHW ()
 
 # Initialize Pygame
 pygame.init()
@@ -481,6 +439,8 @@ while running:
 			continue
 		# display video frame
 		cv2.imshow("Video", frame)
+		# Wait for a key press for 1 millisecond; but don't capture it. waitKey() is mandatory so the image is displayed in opencv2
+		cv2.waitKey(1)
 #***********HERE********** should we wait for some milliseconds ??? define the video rate
 
 
