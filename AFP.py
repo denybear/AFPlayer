@@ -4,6 +4,7 @@ pcTarget = True
 
 
 import sys
+import time
 sys.path.append('./')
 import pygame
 import cv2
@@ -26,8 +27,6 @@ from detect_HW import detectVideoHW
 # highlight_config: make sure we display the right things at the right time (error mgmt)
 # raspi keys and raspi rotary to be tested
 # invert video for the rotary changes (audio or video) to indicate what is changing
-# Control panel touch ready
-# refactor in multiple files?
 # sample X : display, play, etc
 
 
@@ -71,6 +70,7 @@ def init_gpio():
 	for pin in rotaryGPIO:
 		GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)		# Pin as input with pull-up resistor
 		"""
+		# if the above does not work, use the below
 		pinName = rotaryGPIOName [rotaryGPIO.index (pin)]
 		if pinName == "SW":
 			GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)		# Pin as input with pull-up resistor
@@ -224,6 +224,26 @@ while running:
 			# audio playing is complete, let's record an event to stop playing and update the display
 			eq.record_event("audio", ["stop"])		
 
+		elif event.type == pygame.KEYDOWN:
+			# key press
+			keyPressed = pygame.key.name(event.key)
+			if keyPressed == 'q':
+				eq.record_event("key", ["quit"])
+			if keyPressed == 'p':
+				eq.record_event("key", ["previous"])
+			if keyPressed == 'n':
+				eq.record_event("key", ["next"])
+			if keyPressed in ('1', '2', '3', '4', '5', '6', '7', '8', '9'):		# nomore than 9 samples per song, we don't have enough keys on raspi!
+				eq.record_event("key", ["sample", keyPressed])
+#********HERE********** keys for volume and for video
+
+
+		"""
+		##########################################
+		# THIS PART HAS NEVER BEEN TESTED		#
+		# IT IS INTENDED FOR TOUCHSCREEN SUPPORT #
+		##########################################
+		
 		elif event.type == pygame.MOUSEBUTTONDOWN:
 			if slider_info["video_slider_rect"].collidepoint(event.pos):
 				dragging = "video"
@@ -249,17 +269,7 @@ while running:
 				audioVolume = max(0.0, min(1.0, (mx - slider_info["audio_slider_rect"].x) / slider_info["audio_slider_rect"].width))
 			#slider_info = displaySongInfo(screen, song, volume_percent, rate_percent, "Previous Song", "Next Song", highlight_config)
 
-		elif event.type == pygame.KEYDOWN:
-			# key press
-			keyPressed = pygame.key.name(event.key)
-			if keyPressed == 'q':
-				eq.record_event("key", ["quit"])
-			if keyPressed == 'p':
-				eq.record_event("key", ["previous"])
-			if keyPressed == 'n':
-				eq.record_event("key", ["next"])
-			if keyPressed in ('1', '2', '3', '4', '5', '6', '7', '8', '9'):		# nomore than 9 samples per song, we don't have enough keys on raspi!
-				eq.record_event("key", ["sample", keyPressed])
+		"""
 
 
 	# Handle main loop events
@@ -441,9 +451,15 @@ while running:
 		cv2.imshow("Video", frame)
 		# Wait for a key press for 1 millisecond; but don't capture it. waitKey() is mandatory so the image is displayed in opencv2
 		cv2.waitKey(1)
-#***********HERE********** should we wait for some milliseconds ??? define the video rate
+		# Wait for some milliseconds, based on video rate : 25ms at full rate, 12.5ms at 50%
+		time.sleep (0.025 * videoRate)
 
 
+	"""
+	###################################################
+	# THIS PART HAS NEVER BEEN TESTED				 #
+	# IT IS INTENDED FOR RASPI KEY AND ROTARY SUPPORT #
+	###################################################
 
 	# check if raspi keypress or rotary
 	if raspiTarget:
@@ -497,6 +513,7 @@ while running:
 				"audio_volume": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": audioColor, "font_name": "arial", "spacing": 1.0}
 			})
 
+	"""
 
 # Cleanup
 if raspiTarget:
