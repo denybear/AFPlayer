@@ -1,5 +1,7 @@
 from screeninfo import get_monitors
 import pyaudio
+from operator import attrgetter
+
 
 #########################################################################
 # This module is used to get information on the audio and video devices #

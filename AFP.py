@@ -13,21 +13,13 @@ import json
 import random
 import threading
 from collections import deque
-from operator import attrgetter
 if raspiTarget:
 	import RPi.GPIO as GPIO
 from control_screen import displaySongInfo
 from control_screen import configureScreenAreas
 from detect_HW import detectAudioHW
 from detect_HW import detectVideoHW
-
-
-#TO DO
-# test: audio file does not exist, video file does not exist
-# highlight_config: make sure we display the right things at the right time (error mgmt)
-# raspi keys and raspi rotary to be tested
-# invert video for the rotary changes (audio or video) to indicate what is changing
-# sample X : display, play, etc
+from pygame.locals import MOUSEBUTTONDOWN, MOUSEBUTTONUP
 
 
 # Global variables
@@ -189,12 +181,8 @@ pygame.mixer.init(devicename=primaryAudio['name'])
 pygame.mixer.music.set_volume (audioVolume)
 
 # Create windows
-# primary monitor will always get the control panel
-screen = pygame.display.set_mode((primaryVideo.width, primaryVideo.height))
-pygame.display.set_caption("Song Info Display")
-# Configure screen layout
-configureScreenAreas(0.1, 0.2, 0.5, 0.2)
 
+# we start with secondary monitor as we want the primary monitor (pygame control panel) to get the full control over UI
 # secondary monitor will get the video
 # Create a named window; the flags control window behavior
 # In this case, we don't want any title bar or border
@@ -206,12 +194,21 @@ if isVideoHW:
 	# Move the window to the secondary monitor (secondaryVideo.x, secondaryVideo.y)
 	cv2.moveWindow('Video', secondaryVideo.x, secondaryVideo.y)
 
+# we end with primary monitor as we want the primary monitor (pygame control panel) to get the full control over UI
+# primary monitor will always get the control panel
+screen = pygame.display.set_mode((primaryVideo.width, primaryVideo.height), pygame.NOFRAME)
+# force all inputs to be in the pygame window, and hide mouse
+pygame.mouse.set_visible (False)
+pygame.event.set_grab (True)
+#pygame.display.set_caption("Song Info Display")
+# Configure screen layout
+configureScreenAreas(0.1, 0.2, 0.5, 0.2)
+
 
 # Main loop
 eq = EventQueue()		# event queue to manage the events happening in the main loop
 # force display of 1st song in playlist and video
 eq.record_event("key", ["first song"])
-		
 
 while running:
 
@@ -223,20 +220,16 @@ while running:
 		elif event.type == pygame.USEREVENT:
 			# audio playing is complete, let's record an event to stop playing and update the display
 			eq.record_event("audio", ["stop"])		
-
+			
 		elif event.type == pygame.KEYDOWN:
 			# key press
-			keyPressed = pygame.key.name(event.key)
-			if keyPressed == 'q':
-				eq.record_event("key", ["quit"])
-			if keyPressed == 'p':
-				eq.record_event("key", ["previous"])
-			if keyPressed == 'n':
-				eq.record_event("key", ["next"])
-			if keyPressed in ('1', '2', '3', '4', '5', '6', '7', '8', '9'):		# nomore than 9 samples per song, we don't have enough keys on raspi!
-				eq.record_event("key", ["sample", keyPressed])
-#********HERE********** keys for volume and for video
+			# numpad keys are (top left to bottom right): numlock, [/], [*], [-], [7], [8], [9], [+], [4], [5], [6], backspace, [1], [2], [3], ,[0], 0 pressed 3 times (for 000 key), [.], enter
+			keyMapping = {"q":["quit"], "p":["previous"], "backspace":["previous"], "n":["next"], "enter":["next"], "[-]":["vol-"], "[+]":["vol+"], "a":["vol-"], "z":["vol+"], "e":["vid-"], "r":["vid+"], "1":["sample","1"], "numlock":["sample","1"], "2":["sample","2"], "[/]":["sample","2"], "3":["sample","3"], "[*]":["sample","3"], "4":["sample","4"], "[7]":["sample","4"], "5":["sample","5"], "[8]":["sample","5"], "6":["sample","6"], "[9]":["sample","6"]}
 
+			try:
+				eq.record_event("key", keyMapping [keyPressed])
+			except KeyError:
+				pass
 
 		"""
 		##########################################
@@ -362,6 +355,48 @@ while running:
 					sampleString = "sample" + next_event.values [1]
 					eq.record_event("audio", ["play", sampleString, sampleFileName])
 
+			# audio volume -
+			if next_event.values [0] == "vol-":
+				audioVolume = max (0, audioVolume - 0.02)
+				if isAudioHW:
+					pygame.mixer.music.set_volume (audioVolume)
+				# record new event to update the display
+				eq.record_event("display", {
+					"video_rate": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": videoColor, "font_name": "arial", "spacing": 1.0},
+					"audio_volume": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": audioColor, "font_name": "arial", "spacing": 1.0}
+				})
+
+			# audio volume +
+			if next_event.values [0] == "vol+":
+				audioVolume = min (audioVolume + 0.02, 1.0)
+				if isAudioHW:
+					pygame.mixer.music.set_volume (audioVolume)
+				# record new event to update the display
+				eq.record_event("display", {
+					"video_rate": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": videoColor, "font_name": "arial", "spacing": 1.0},
+					"audio_volume": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": audioColor, "font_name": "arial", "spacing": 1.0}
+				})
+
+			# video rate -
+			if next_event.values [0] == "vid-":
+				videoRate = max (0.2, videoRate - 0.02) 	# lowest video rate would be 30%
+				# record new event to update the display
+				eq.record_event("display", {
+					"video_rate": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": videoColor, "font_name": "arial", "spacing": 1.0},
+					"audio_volume": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": audioColor, "font_name": "arial", "spacing": 1.0}
+				})
+
+			# video rate +
+			if next_event.values [0] == "vid+":
+				videoRate = min (videoRate + 0.02, 1.0)
+				# record new event to update the display
+				eq.record_event("display", {
+					"video_rate": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": videoColor, "font_name": "arial", "spacing": 1.0},
+					"audio_volume": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": audioColor, "font_name": "arial", "spacing": 1.0}
+				})
+
+
+
 		# audio events
 		if next_event.label == "audio":
 
@@ -385,13 +420,10 @@ while running:
 				# record new event to update the display, based on the result of playing (sample exists or not)
 				if playing:
 					audioColor = colorNoError
-#*********HERE********* samplestring !!!
 					eq.record_event("display", {
-						sampleString: {"font_size": 0.05, "bold": False, "italic": False, "inverse": False, "color": (0, 100, 0), "font_name": "couriernew", "spacing": 1.5},
+						sampleString: {"font_size": 0.05, "bold": False, "italic": False, "inverse": True, "color": (0, 100, 0), "font_name": "couriernew", "spacing": 1.5},
 						"video_rate": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": videoColor, "font_name": "arial", "spacing": 1.0},
 						"audio_volume": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": audioColor, "font_name": "arial", "spacing": 1.0}
-
-
 					})
 				else:
 					audioColor = colorWarning
@@ -452,7 +484,7 @@ while running:
 		# Wait for a key press for 1 millisecond; but don't capture it. waitKey() is mandatory so the image is displayed in opencv2
 		cv2.waitKey(1)
 		# Wait for some milliseconds, based on video rate : 25ms at full rate, 12.5ms at 50%
-		time.sleep (0.025 * videoRate)
+		time.sleep (0.025 / videoRate)
 
 
 	"""
@@ -524,4 +556,7 @@ if isVideoHW and cap is not None:
 	cap.release()
 cv2.destroyAllWindows()
 pygame.mixer.music.stop()
+# Disable input grabbing before exiting
+pygame.event.set_grab(False)
+pygame.mouse.set_visible (True)
 pygame.quit()

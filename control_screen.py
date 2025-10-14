@@ -11,13 +11,13 @@ screen_area_ratios = {
 
 
 default_config = {
-    "previous": {"font_size": 0.06, "bold": True, "italic": False, "inverse": False, "color": (0, 0, 0), "font_name": "verdana", "spacing": 1.0},
-    "next": {"font_size": 0.06, "bold": True, "italic": False, "inverse": False, "color": (0, 0, 0), "font_name": "verdana", "spacing": 1.0},
-    "song": {"font_size": 0.08, "bold": True, "italic": False, "inverse": False, "color": (0, 128, 255), "font_name": "verdana", "spacing": 1.0},
-    "video": {"font_size": 0.05, "bold": False, "italic": True, "inverse": False, "color": (128, 0, 128), "font_name": "verdana", "spacing": 1.0},
-    "sample": {"font_size": 0.05, "bold": False, "italic": False, "inverse": False, "color": (0, 100, 0), "font_name": "couriernew", "spacing": 1.5},
-    "video_rate": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": (0, 100, 0), "font_name": "arial", "spacing": 1.0},
-    "audio_volume": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": (0, 100, 0), "font_name": "arial", "spacing": 1.0}
+	"previous": {"font_size": 0.06, "bold": True, "italic": False, "inverse": False, "color": (0, 0, 0), "font_name": "verdana", "spacing": 1.0},
+	"next": {"font_size": 0.06, "bold": True, "italic": False, "inverse": False, "color": (0, 0, 0), "font_name": "verdana", "spacing": 1.0},
+	"song": {"font_size": 0.08, "bold": True, "italic": False, "inverse": False, "color": (0, 128, 255), "font_name": "verdana", "spacing": 1.0},
+	"video": {"font_size": 0.05, "bold": False, "italic": True, "inverse": False, "color": (128, 0, 128), "font_name": "verdana", "spacing": 1.0},
+	"sample": {"font_size": 0.05, "bold": False, "italic": False, "inverse": False, "color": (0, 100, 0), "font_name": "couriernew", "spacing": 1.5},
+	"video_rate": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": (0, 100, 0), "font_name": "arial", "spacing": 1.0},
+	"audio_volume": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": (0, 100, 0), "font_name": "arial", "spacing": 1.0}
 }
 
 
@@ -54,6 +54,17 @@ def displaySongInfo(screen, song, volume_percent, rate_percent, previous_entry="
 
 	def get_style(key):
 		cfg = merged_config.get(key, {})
+		font_size = int(cfg.get("font_size", 0.05) * screen_height)
+		bold = cfg.get("bold", False)
+		italic = cfg.get("italic", False)
+		inverse = cfg.get("inverse", False)
+		color = cfg.get("color", (0, 0, 0))
+		font_name = cfg.get("font_name", None)
+		spacing = cfg.get("spacing", 1.0)
+		font = pygame.font.SysFont(font_name, font_size, bold=bold, italic=italic)
+		return font, font_size, color, inverse, spacing
+
+	def get_style_from_cfg(cfg):
 		font_size = int(cfg.get("font_size", 0.05) * screen_height)
 		bold = cfg.get("bold", False)
 		italic = cfg.get("italic", False)
@@ -124,14 +135,21 @@ def displaySongInfo(screen, song, volume_percent, rate_percent, previous_entry="
 		pygame.draw.rect(screen, color_video, video_surface.get_rect(topleft=(video_x, video_y)))
 	screen.blit(video_surface, (video_x, video_y))
 
-	# Sample list
-	font_sample, sample_size, color_sample, inverse_sample, spacing_sample = get_style("sample")
+	# Sample list and individual samples
 	sample_rects = []
 	sample_y = sample_top
 	for i, sample_text in enumerate(song.sample):
+		sample_key = f"sample{i+1}"
+		# Start with the merged "sample" config
+		sample_cfg = merged_config["sample"].copy()
+		# If highlight_config has a specific config for this sample, merge it
+		if highlight_config and sample_key in highlight_config:
+			sample_cfg.update(highlight_config[sample_key])
+		# Get style for this sample
+		font_sample, sample_size, color_sample, inverse_sample, spacing_sample = get_style_from_cfg(sample_cfg)
 		label = f"Sample {i+1}: {sample_text}"
-		sample_surface = font_sample.render(label, True, (255, 255, 255) if inverse_sample else color_sample)
 		sample_x = int(0.02 * screen_width)
+		sample_surface = font_sample.render(label, True, (255, 255, 255) if inverse_sample else color_sample)
 		if inverse_sample:
 			pygame.draw.rect(screen, color_sample, sample_surface.get_rect(topleft=(sample_x, sample_y)))
 		screen.blit(sample_surface, (sample_x, sample_y))
