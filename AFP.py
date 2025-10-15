@@ -196,6 +196,7 @@ if isVideoHW:
 
 # we end with primary monitor as we want the primary monitor (pygame control panel) to get the full control over UI
 # primary monitor will always get the control panel
+os.environ['SDL_VIDEO_WINDOW_POS'] = '%i, %i' % (primaryVideo.x, primaryVideo.y)		# force window positionning to primary display
 screen = pygame.display.set_mode((primaryVideo.width, primaryVideo.height), pygame.NOFRAME)
 # force all inputs to be in the pygame window, and hide mouse
 pygame.mouse.set_visible (False)
@@ -222,10 +223,11 @@ while running:
 			eq.record_event("audio", ["stop"])		
 			
 		elif event.type == pygame.KEYDOWN:
-			# key press
+			# key press pygame event
 			# numpad keys are (top left to bottom right): numlock, [/], [*], [-], [7], [8], [9], [+], [4], [5], [6], backspace, [1], [2], [3], ,[0], 0 pressed 3 times (for 000 key), [.], enter
 			keyMapping = {"q":["quit"], "p":["previous"], "backspace":["previous"], "n":["next"], "enter":["next"], "[-]":["vol-"], "[+]":["vol+"], "a":["vol-"], "z":["vol+"], "e":["vid-"], "r":["vid+"], "1":["sample","1"], "numlock":["sample","1"], "2":["sample","2"], "[/]":["sample","2"], "3":["sample","3"], "[*]":["sample","3"], "4":["sample","4"], "[7]":["sample","4"], "5":["sample","5"], "[8]":["sample","5"], "6":["sample","6"], "[9]":["sample","6"]}
 
+			keyPressed = pygame.key.name(event.key)
 			try:
 				eq.record_event("key", keyMapping [keyPressed])
 			except KeyError:
