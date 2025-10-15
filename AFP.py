@@ -32,7 +32,7 @@ playing = False
 dragging = None
 rotaryChangesVolume = True
 audioVolume = 0.5
-videoRate = 1.0
+videoRate = 0.5
 playListIndex = 0
 colorNoError = [0, 128, 0]
 colorError = [255, 0, 0]
@@ -381,7 +381,7 @@ while running:
 
 			# video rate -
 			if next_event.values [0] == "vid-":
-				videoRate = max (0.2, videoRate - 0.02) 	# lowest video rate would be 30%
+				videoRate = max (0.1, videoRate - 0.02) 	# lowest video rate would be 10%, ie. 50ms wait per frame 
 				# record new event to update the display
 				eq.record_event("display", {
 					"video_rate": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": videoColor, "font_name": "arial", "spacing": 1.0},
@@ -390,7 +390,7 @@ while running:
 
 			# video rate +
 			if next_event.values [0] == "vid+":
-				videoRate = min (videoRate + 0.02, 1.0)
+				videoRate = min (videoRate + 0.02, 1.0)     # highest video rate would be 100%, ie. 5ms wait per frame
 				# record new event to update the display
 				eq.record_event("display", {
 					"video_rate": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": videoColor, "font_name": "arial", "spacing": 1.0},
@@ -485,8 +485,8 @@ while running:
 		cv2.imshow("Video", frame)
 		# Wait for a key press for 1 millisecond; but don't capture it. waitKey() is mandatory so the image is displayed in opencv2
 		cv2.waitKey(1)
-		# Wait for some milliseconds, based on video rate : 25ms at full rate, 12.5ms at 50%
-		time.sleep (0.025 / videoRate)
+		# Wait for some milliseconds, based on video rate : 5ms at full rate (1.0), 10ms at 50%, 20ms at 25%, 25ms at 20%
+		time.sleep (0.005 / videoRate)
 
 
 	"""
@@ -530,7 +530,7 @@ while running:
 			counter = min (counter, 1.0)
 			audioVolume = counter
 		else:
-			counter = max (0.3, counter)	# lowest video rate would be 30%
+			counter = max (0.1, counter)	# lowest video rate would be 10%
 			counter = min (counter, 1.0)
 			videoRate = counter
 

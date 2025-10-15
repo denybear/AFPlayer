@@ -1,5 +1,11 @@
 [
   {
+    "song": "QR Code",
+    "video": "QR Code.mp4",
+    "sample": [],
+    "startPosition": "beginning"
+  },
+  {
     "song": "Intro",
     "video": "We Are.mp4",
     "sample": [],
@@ -75,6 +81,12 @@
     "startPosition": "beginning"
   },
   {
+    "song": "QR Code",
+    "video": "QR Code.mp4",
+    "sample": [],
+    "startPosition": "beginning"
+  },
+  {
     "song": "Intro",
     "video": "We Are.mp4",
     "sample": [],
@@ -126,8 +138,14 @@
     "startPosition": "random"
   },
   {
-    "song": "Intro",
+    "song": "Outro",
     "video": "We Are.mp4",
+    "sample": [],
+    "startPosition": "beginning"
+  },
+  {
+    "song": "QR Code",
+    "video": "QR Code.mp4",
     "sample": [],
     "startPosition": "beginning"
   }
