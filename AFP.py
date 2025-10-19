@@ -357,46 +357,36 @@ while running:
 					sampleString = "sample" + next_event.values [1]
 					eq.record_event("audio", ["play", sampleString, sampleFileName])
 
-			# audio volume -
-			if next_event.values [0] == "vol-":
-				audioVolume = max (0, audioVolume - 0.02)
-				if isAudioHW:
-					pygame.mixer.music.set_volume (audioVolume)
-				# record new event to update the display
-				eq.record_event("display", {
+			# audio volume -, audio volume +, video rate -, video rate +
+			if next_event.values [0] in ("vol-","vol+","vid-","vid+"):
+			
+				if next_event.values [0] == "vol-":
+					audioVolume = max (0, audioVolume - 0.02)
+					if isAudioHW:
+						pygame.mixer.music.set_volume (audioVolume)
+
+				# audio volume +
+				if next_event.values [0] == "vol+":
+					audioVolume = min (audioVolume + 0.02, 1.0)
+					if isAudioHW:
+						pygame.mixer.music.set_volume (audioVolume)
+
+				# video rate -
+				if next_event.values [0] == "vid-":
+					videoRate = max (0.1, videoRate - 0.02) 	# lowest video rate would be 10%, ie. 50ms wait per frame 
+
+				# video rate +
+				if next_event.values [0] == "vid+":
+					videoRate = min (videoRate + 0.02, 1.0)     # highest video rate would be 100%, ie. 5ms wait per frame
+
+				# record new event to update the display, based on the result of audioColor, videoColor and playing (sample exists or not)
+				highlight_config = {
 					"video_rate": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": videoColor, "font_name": "arial", "spacing": 1.0},
 					"audio_volume": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": audioColor, "font_name": "arial", "spacing": 1.0}
-				})
-
-			# audio volume +
-			if next_event.values [0] == "vol+":
-				audioVolume = min (audioVolume + 0.02, 1.0)
-				if isAudioHW:
-					pygame.mixer.music.set_volume (audioVolume)
-				# record new event to update the display
-				eq.record_event("display", {
-					"video_rate": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": videoColor, "font_name": "arial", "spacing": 1.0},
-					"audio_volume": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": audioColor, "font_name": "arial", "spacing": 1.0}
-				})
-
-			# video rate -
-			if next_event.values [0] == "vid-":
-				videoRate = max (0.1, videoRate - 0.02) 	# lowest video rate would be 10%, ie. 50ms wait per frame 
-				# record new event to update the display
-				eq.record_event("display", {
-					"video_rate": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": videoColor, "font_name": "arial", "spacing": 1.0},
-					"audio_volume": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": audioColor, "font_name": "arial", "spacing": 1.0}
-				})
-
-			# video rate +
-			if next_event.values [0] == "vid+":
-				videoRate = min (videoRate + 0.02, 1.0)     # highest video rate would be 100%, ie. 5ms wait per frame
-				# record new event to update the display
-				eq.record_event("display", {
-					"video_rate": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": videoColor, "font_name": "arial", "spacing": 1.0},
-					"audio_volume": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": audioColor, "font_name": "arial", "spacing": 1.0}
-				})
-
+				}
+				if playing:
+					highlight_config [sampleString] = {"font_size": 0.05, "bold": False, "italic": False, "inverse": True, "color": (0, 100, 0), "font_name": "couriernew", "spacing": 1.5}
+				eq.record_event("display", highlight_config)
 
 
 		# audio events
@@ -419,20 +409,16 @@ while running:
 				sampleString = next_event.values [1]
 				sampleFileName = next_event.values [2]
 				playing = start_audio_thread (sampleFileName) if isAudioHW else False
-				# record new event to update the display, based on the result of playing (sample exists or not)
+				audioColor = colorNoError if playing else colorWarning
+				# record new event to update the display, based on the result of videoColor and playing (sample exists or not)
+				highlight_config = {
+					"video_rate": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": videoColor, "font_name": "arial", "spacing": 1.0},
+					"audio_volume": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": audioColor, "font_name": "arial", "spacing": 1.0}
+				}
 				if playing:
-					audioColor = colorNoError
-					eq.record_event("display", {
-						sampleString: {"font_size": 0.05, "bold": False, "italic": False, "inverse": True, "color": (0, 100, 0), "font_name": "couriernew", "spacing": 1.5},
-						"video_rate": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": videoColor, "font_name": "arial", "spacing": 1.0},
-						"audio_volume": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": audioColor, "font_name": "arial", "spacing": 1.0}
-					})
-				else:
-					audioColor = colorWarning
-					eq.record_event("display", {
-						"video_rate": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": videoColor, "font_name": "arial", "spacing": 1.0},
-						"audio_volume": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": audioColor, "font_name": "arial", "spacing": 1.0}
-					})
+					highlight_config [sampleString] = {"font_size": 0.05, "bold": False, "italic": False, "inverse": True, "color": (0, 100, 0), "font_name": "couriernew", "spacing": 1.5}
+				eq.record_event("display", highlight_config)
+
 
 		# video events
 		if next_event.label == "video":
@@ -449,18 +435,10 @@ while running:
 						# in case file does not exists, cap.isOpened () will return False
 						if not cap.isOpened():
 							# file does not exist, update display
-							videoColor = colorWarning
-							eq.record_event("display", {
-								"video_rate": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": videoColor, "font_name": "arial", "spacing": 1.0},
-								"audio_volume": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": audioColor, "font_name": "arial", "spacing": 1.0}
-							})
+							videoColor = colorWarning						
 						else:
 							# file exists, update display
 							videoColor = colorNoError
-							eq.record_event("display", {
-								"video_rate": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": videoColor, "font_name": "arial", "spacing": 1.0},
-								"audio_volume": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": audioColor, "font_name": "arial", "spacing": 1.0}
-							})
 							# determine startPos, and set it to video
 							if next_event.values [3] == "beginning":
 								startPos = 0
@@ -468,6 +446,15 @@ while running:
 								startPos = random.randint (0, int(cap.get(cv2.CAP_PROP_FRAME_COUNT)))
 							# set start position
 							cap.set(cv2.CAP_PROP_POS_FRAMES, startPos)				
+
+						# record new event to update the display, based on the result of videoColor and playing (sample exists or not)
+						highlight_config = {
+							"video_rate": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": videoColor, "font_name": "arial", "spacing": 1.0},
+							"audio_volume": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": audioColor, "font_name": "arial", "spacing": 1.0}
+						}
+						#if playing:
+						#	highlight_config [sampleString] = {"font_size": 0.05, "bold": False, "italic": False, "inverse": True, "color": (0, 100, 0), "font_name": "couriernew", "spacing": 1.5}
+						eq.record_event("display", highlight_config)
 
 
 
