@@ -12,6 +12,14 @@
     "startPosition": "beginning"
   },
   {
+    "song": "Echoes",
+    "video": "Echoes.mp4",
+    "sample": [
+      "Echoes_outro.mp3"
+    ],
+    "startPosition": "beginning"
+  },
+  {
     "song": "Speak to me",
     "video": "Dark Side.mp4",
     "sample": [
@@ -93,25 +101,10 @@
     "startPosition": "beginning"
   },
   {
-    "song": "Cymbaline",
-    "video": "Standard.mp4",
-    "sample": [],
-    "startPosition": "random"
-  },
-  {
     "song": "Shine On You Crazy Diamond",
     "video": "Astra Domine.mp4",
     "sample": [],
     "startPosition": "beginning"
-  },
-  {
-    "song": "Dogs",
-    "video": "Animals.mp4",
-    "sample": [
-      "Dogs_1.mp3",
-      "Dogs_2.mp3"
-    ],
-    "startPosition": "random"
   },
   {
     "song": "Wish You Were Here",
@@ -123,6 +116,12 @@
     "startPosition": "beginning"
   },
   {
+    "song": "Another Brick In The Wall",
+    "video": "The Wall.mp4",
+    "sample": [],
+    "startPosition": "random"
+  },
+  {
     "song": "Comfortably Numb",
     "video": "Moving Dots.mp4",
     "sample": [
@@ -132,8 +131,31 @@
     "startPosition": "beginning"
   },
   {
-    "song": "Another Brick In The Wall",
-    "video": "The Wall.mp4",
+    "song": "Astronomy Domine",
+    "video": "Standard.mp4",
+    "sample": [
+      "Astronomy_intro.mp3"
+    ],
+    "startPosition": "random"
+  },
+  {
+    "song": "Dogs",
+    "video": "Animals.mp4",
+    "sample": [
+      "Dogs_1.mp3",
+      "Dogs_2.mp3"
+    ],
+    "startPosition": "beginning"
+  },
+  {
+    "song": "Have a Cigar",
+    "video": "Standard.mp4",
+    "sample": [],
+    "startPosition": "random"
+  },
+  {
+    "song": "Cymbaline",
+    "video": "Standard.mp4",
     "sample": [],
     "startPosition": "random"
   },
