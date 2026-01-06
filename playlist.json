@@ -101,44 +101,6 @@
     "startPosition": "beginning"
   },
   {
-    "song": "Shine On You Crazy Diamond",
-    "video": "Astra Domine.mp4",
-    "sample": [],
-    "startPosition": "beginning"
-  },
-  {
-    "song": "Wish You Were Here",
-    "video": "Electric Strings.mp4",
-    "sample": [
-      "WishYouWereHere_intro.mp3",
-      "WishYouWereHere_outro.mp3"
-    ],
-    "startPosition": "beginning"
-  },
-  {
-    "song": "Another Brick In The Wall",
-    "video": "The Wall.mp4",
-    "sample": [],
-    "startPosition": "random"
-  },
-  {
-    "song": "Comfortably Numb",
-    "video": "Moving Dots.mp4",
-    "sample": [
-      "ComfortablyNumb_intro.mp3",
-      "ComfortablyNumb_aaaaa.mp3"
-    ],
-    "startPosition": "beginning"
-  },
-  {
-    "song": "Astronomy Domine",
-    "video": "Standard.mp4",
-    "sample": [
-      "Astronomy_intro.mp3"
-    ],
-    "startPosition": "random"
-  },
-  {
     "song": "Dogs",
     "video": "Animals.mp4",
     "sample": [
@@ -154,10 +116,28 @@
     "startPosition": "random"
   },
   {
-    "song": "Cymbaline",
-    "video": "Standard.mp4",
+    "song": "Shine On You Crazy Diamond",
+    "video": "Astra Domine.mp4",
     "sample": [],
-    "startPosition": "random"
+    "startPosition": "beginning"
+  },
+  {
+    "song": "Comfortably Numb",
+    "video": "Moving Dots.mp4",
+    "sample": [
+      "ComfortablyNumb_intro.mp3",
+      "ComfortablyNumb_aaaaa.mp3"
+    ],
+    "startPosition": "beginning"
+  },
+  {
+    "song": "Wish You Were Here",
+    "video": "Electric Strings.mp4",
+    "sample": [
+      "WishYouWereHere_intro.mp3",
+      "WishYouWereHere_outro.mp3"
+    ],
+    "startPosition": "beginning"
   },
   {
     "song": "Outro",
