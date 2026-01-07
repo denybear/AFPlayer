@@ -1,8 +1,4 @@
-# Define targets
-raspiTarget = False
-pcTarget = True
-
-
+# Config 1: PC with regular keypad for track/sample selection, 1 HDMI display for control, 1 optional HDMI display for video
 import sys
 import time
 sys.path.append('./')
@@ -13,8 +9,6 @@ import json
 import random
 import threading
 from collections import deque
-if raspiTarget:
-	import RPi.GPIO as GPIO
 from control_screen import displaySongInfo
 from control_screen import configureScreenAreas
 from detect_HW import detectAudioHW
@@ -37,46 +31,7 @@ playListIndex = 0
 colorNoError = [0, 128, 0]
 colorError = [255, 0, 0]
 colorWarning = [255, 165, 0]
-keyGPIO = [18, 19, 20, 21, 22]
-keyGPIOName = [["previous"], ["next"], ["sample","1"], ["sample","2"], ["sample","3"]]
-rotaryGPIO = [17, 18, 27]
-rotaryGPIOName = ["CLK", "DT", "SW"]
-#rotaryLastState = GPIO.input(rotary_gpio("CLK"))
-rotaryLastState = False		# dummy value to start with
-
-
-# functions for raspi key capture and rotary capture
-def init_gpio():
-
-	# Set GPIO mode (BCM or BOARD)
-	GPIO.setmode(GPIO.BCM)  # Use GPIO numbering (BCM)
-	# GPIO.setmode(GPIO.BOARD)  # Use physical pin numbering
-	#GPIO.setup(23, GPIO.OUT)  # Pin 23 as output
-
-	# Set up keys GPIOs
-	# Pull-up mode : when idle, GPIO is considered at +3V. Switch can be connected to GND, and when closed, GPIO will fall down to GND
-	for pin in keyGPIO:
-		GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)		# Pin as input with pull-up resistor
-
-	# Set up rotary GPIOs
-	for pin in rotaryGPIO:
-		GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)		# Pin as input with pull-up resistor
-		"""
-		# if the above does not work, use the below
-		pinName = rotaryGPIOName [rotaryGPIO.index (pin)]
-		if pinName == "SW":
-			GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)		# Pin as input with pull-up resistor
-		else:
-			GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)	# Pin as input with pull-down resistor
-		"""
-
-def rotary_gpio(name):
-	for pin in rotaryGPIOName:
-		if pin == name:
-			return rotaryGPIO [rotaryGPIOName.index (pin)]
-
-
-
+isMonitoring = True		# displays a small duplicate of secondary screen on primary screen for monitoring purposes
 
 # class for handling events in the main loop
 class Event:
@@ -159,10 +114,6 @@ def start_audio_thread(audio_file):
 ########
 # MAIN #
 ########
-# init raspi hardware
-if raspiTarget:
-	init_gpio ()
-
 # Load the JSON data from the file
 with open('./playlist.json', 'r', encoding='utf-8') as file:
 	data = json.load(file)
@@ -193,6 +144,16 @@ if isVideoHW:
 	#cv2.resizeWindow('Video', secondaryVideo.width, secondaryVideo.height)
 	# Move the window to the secondary monitor (secondaryVideo.x, secondaryVideo.y)
 	cv2.moveWindow('Video', secondaryVideo.x, secondaryVideo.y)
+
+	if isMonitoring:
+		cv2.namedWindow('Monitoring', cv2.WINDOW_NORMAL)
+		#cv2.setWindowProperty('Monitoring', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+		# Resize the window to a specific size (width, height)
+		cv2.resizeWindow('Monitoring', 96, 54)						# Full HD ratio = 192 * 108
+		# Move the window to the primary monitor
+		cv2.moveWindow('Monitoring', primaryVideo.x, primaryVideo.y)	# Top left corner for now
+
+
 
 # we end with primary monitor as we want the primary monitor (pygame control panel) to get the full control over UI
 # primary monitor will always get the control panel
@@ -470,76 +431,15 @@ while running:
 			continue
 		# display video frame
 		cv2.imshow("Video", frame)
+		if isMonitoring:						# monitoring the 2nd screen on the primary (control) screen
+			cv2.imshow("Monitoring", frame)
 		# Wait for a key press for 1 millisecond; but don't capture it. waitKey() is mandatory so the image is displayed in opencv2
 		cv2.waitKey(1)
 		# Wait for some milliseconds, based on video rate : 5ms at full rate (1.0), 10ms at 50%, 20ms at 25%, 25ms at 20%
 		time.sleep (0.005 / videoRate)
 
 
-	"""
-	###################################################
-	# THIS PART HAS NEVER BEEN TESTED				 #
-	# IT IS INTENDED FOR RASPI KEY AND ROTARY SUPPORT #
-	###################################################
-
-	# check if raspi keypress or rotary
-	if raspiTarget:
-		# RASPI KEYS
-		# Read the state of each GPIO to determine which are on and off, ie. which key is pressed or not
-		for pin in keyGPIO:
-			# LOW means key is pressed, HIGH means key is not pressed; we change this so True=pressed, False=not pressed
-			if not GPIO.input(pin):
-				# key is pressed, add key event
-				eq.record_event("key", keyGPIOName [keyGPIO.index (pin)])
-
-		# RASPI ROTARY
-		# check if audio volume or video rate is changed
-		# button would switch between audio volume and video rate
-		counter = audioVolume if rotaryChangesVolume else videoRate
-		rotaryCurrentState = GPIO.input(rotary_gpio("CLK"))
-
-		if rotaryCurrentState != rotaryLastState:			# Detect rotation
-			# new counter value
-			if GPIO.input(rotary_gpio("DT")) != rotaryCurrentState:
-				counter += 0.01  # Clockwise
-			else:
-				counter -= 0.01  # Counter-clockwise
-			# record display event to show change in the display
-			eq.record_event("display", {
-				"video_rate": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": videoColor, "font_name": "arial", "spacing": 1.0},
-				"audio_volume": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": audioColor, "font_name": "arial", "spacing": 1.0}
-			})
-		rotaryLastState = rotaryCurrentState
-
-		# cap and map new counter value to audioVolume or videoRate
-		if rotaryChangesVolume:
-			counter = max (0, counter)
-			counter = min (counter, 1.0)
-			audioVolume = counter
-		else:
-			counter = max (0.1, counter)	# lowest video rate would be 10%
-			counter = min (counter, 1.0)
-			videoRate = counter
-
-		# Detect button press
-		#if GPIO.input(SW) == GPIO.LOW:
-		if not GPIO.input(rotary_gpio("SW")):
-			rotaryChangesVolume = not rotaryChangesVolume
-			#print("Button Pressed!")
-			#sleep(0.3)  # Debounce delay
-
-			# record display event to show change in the display
-			eq.record_event("display", {
-				"video_rate": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": videoColor, "font_name": "arial", "spacing": 1.0},
-				"audio_volume": {"font_size": 0.04, "bold": True, "italic": False, "inverse": False, "color": audioColor, "font_name": "arial", "spacing": 1.0}
-			})
-
-	"""
-
 # Cleanup
-if raspiTarget:
-	GPIO.cleanup()		# Clean up GPIO on exit
-
 if isAudioHW: stop_audio()
 if isVideoHW and cap is not None:
 	cap.release()
