@@ -14,7 +14,7 @@ from control_screen import configureScreenAreas
 from detect_HW import detectAudioHW
 from detect_HW import detectVideoHW
 from pygame.locals import MOUSEBUTTONDOWN, MOUSEBUTTONUP
-
+from playlist_update import sync_remote_file
 
 # Global variables
 audio_thread = None
@@ -114,6 +114,15 @@ def start_audio_thread(audio_file):
 ########
 # MAIN #
 ########
+
+# check online & update playlist if required
+updated, msg = sync_remote_file(
+	"https://github.com/denybear/AFPlayer/blob/main/playlist.json",
+	local_filename="playlist.json",  # will save into the current directory
+	timeout=3.0
+)
+print(updated, msg)
+
 # Load the JSON data from the file
 with open('./playlist.json', 'r', encoding='utf-8') as file:
 	data = json.load(file)
