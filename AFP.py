@@ -15,6 +15,8 @@ from detect_HW import detectAudioHW
 from detect_HW import detectVideoHW
 from pygame.locals import MOUSEBUTTONDOWN, MOUSEBUTTONUP
 from playlist_update import sync_remote_file
+import argparse
+
 
 # Global variables
 audio_thread = None
@@ -109,6 +111,28 @@ def start_audio_thread(audio_file):
 	audio_thread.start()
 	return True
 
+
+# function for the arguments passing
+def parse_args():
+	parser = argparse.ArgumentParser(description="Run my script")
+	group = parser.add_mutually_exclusive_group()
+	group.add_argument(
+		"--monitoring",
+		dest="monitoring",
+		action="store_true",
+		help="Enable monitoring (default)"
+	)
+	group.add_argument(
+		"--no-monitoring",
+		dest="monitoring",
+		action="store_false",
+		help="Disable monitoring"
+	)
+
+	# default = True
+	parser.set_defaults(monitoring=True)
+	return parser.parse_args()
+
 	
 	
 ########
@@ -122,6 +146,11 @@ updated, msg = sync_remote_file(
 	timeout=3.0
 )
 print(updated, msg)
+
+# parse and manage arguments
+args = parse_args()
+print(f"Monitoring: {args.monitoring}")
+isMonitoring = args.monitoring
 
 # Load the JSON data from the file
 with open('./playlist.json', 'r', encoding='utf-8') as file:
@@ -155,18 +184,30 @@ if isVideoHW:
 	cv2.moveWindow('Video', secondaryVideo.x, secondaryVideo.y)
 
 	if isMonitoring:
-		cv2.namedWindow('Monitoring', cv2.WINDOW_NORMAL)
-		#cv2.setWindowProperty('Monitoring', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
-		# Resize the window to a specific size (width, height)
-		cv2.resizeWindow('Monitoring', 96, 54)						# Full HD ratio = 192 * 108
-		# Move the window to the primary monitor
-		cv2.moveWindow('Monitoring', primaryVideo.x, primaryVideo.y)	# Top left corner for now
+		# Compute size of Monitoring screen
+		# For this, we position at about 75% of the screen (The last 20% of the screen are for the sliders), to the right
+		# Of course, we shall be proportional to the size of primary screen
+		monitoringHeight = int (primaryVideo.height * 0.2)
+		monitoringWidth = int (primaryVideo.width * 0.2)
+		leftMargin = int (primaryVideo.width * 0.05)		# 5% of screen width for left margin (so it is aligned with sliders' right ends)
+		monitoringX = primaryVideo.x + (primaryVideo.width - monitoringWidth - leftMargin)
+		monitoringY = primaryVideo.y + (int (primaryVideo.height * 0.75) - monitoringHeight)
 
+		cv2.namedWindow('Monitoring', cv2.WND_PROP_FULLSCREEN)
+		cv2.setWindowProperty('Monitoring', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+		cv2.setWindowProperty('Monitoring', cv2.WND_PROP_TOPMOST, 1)
+		cv2.setWindowProperty('Monitoring', cv2.WND_PROP_AUTOSIZE, 0)
+		cv2.setWindowProperty('Monitoring', cv2.WND_PROP_ASPECT_RATIO, 1)
+		# Resize the window to a specific size (width, height)
+		cv2.resizeWindow('Monitoring', monitoringWidth, monitoringHeight)		# Full HD ratio = 1920 * 1080
+		# Move the window to the primary monitor
+		cv2.moveWindow('Monitoring', monitoringX, monitoringY)	# Top left corner for now
 
 
 # we end with primary monitor as we want the primary monitor (pygame control panel) to get the full control over UI
 # primary monitor will always get the control panel
 os.environ['SDL_VIDEO_WINDOW_POS'] = '%i, %i' % (primaryVideo.x, primaryVideo.y)		# force window positionning to primary display
+#screen = pygame.display.set_mode((primaryVideo.width, primaryVideo.height), pygame.NOFRAME)
 screen = pygame.display.set_mode((primaryVideo.width, primaryVideo.height), pygame.NOFRAME)
 # force all inputs to be in the pygame window, and hide mouse
 pygame.mouse.set_visible (False)
@@ -347,7 +388,7 @@ while running:
 
 				# video rate +
 				if next_event.values [0] == "vid+":
-					videoRate = min (videoRate + 0.02, 1.0)     # highest video rate would be 100%, ie. 5ms wait per frame
+					videoRate = min (videoRate + 0.02, 1.0)	 # highest video rate would be 100%, ie. 5ms wait per frame
 
 				# record new event to update the display, based on the result of audioColor, videoColor and playing (sample exists or not)
 				highlight_config = {
@@ -437,7 +478,7 @@ while running:
 		# If the video ends, restart it
 		if not ret:
 			cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-			continue
+			continue							# do not remove otherwise this will create an assertion error in opencv!!!
 		# display video frame
 		cv2.imshow("Video", frame)
 		if isMonitoring:						# monitoring the 2nd screen on the primary (control) screen
