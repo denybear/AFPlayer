@@ -160,7 +160,7 @@ with open('./playlist.json', 'r', encoding='utf-8') as file:
 playList = [Song(item['song'], item['video'], item['sample'], item['startPosition']) for item in data]
 
 # Manage audio HW: select the right audio device for outputing sound; we can enter several devices (or device sub-names), the first one found will be used
-isAudioHW, audioColor, primaryAudio = detectAudioHW (['Realtek HD Audio 2nd output (Realtek(R) Audio)', 'Speakers (Realtek(R) Audio)'])
+isAudioHW, audioColor, primaryAudio = detectAudioHW (['Haut-parleur/Ecouteurs (Realtek High Definition Audio)', 'Realtek HD Audio 2nd output (Realtek(R) Audio)', 'Speakers (Realtek(R) Audio)'])
 # Manage video HW: primary and secondary monitors
 isVideoHW, videoColor, primaryVideo, secondaryVideo = detectVideoHW ()
 
